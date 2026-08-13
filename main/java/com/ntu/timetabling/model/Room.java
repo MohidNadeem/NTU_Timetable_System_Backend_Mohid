@@ -23,6 +23,10 @@ public class Room {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
+    // adding this so room filter/display can show where it actually is, not just its code
+    @Column(nullable = false, length = 100)
+    private String building;
+
     @Column(nullable = false)
     private int capacity;
 }

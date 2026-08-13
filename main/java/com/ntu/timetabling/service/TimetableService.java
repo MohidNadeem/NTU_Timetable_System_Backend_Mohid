@@ -29,4 +29,12 @@ public class TimetableService {
                 .map(TimetableSessionDto::fromEntity)
                 .toList();
     }
+
+    // adding filters to the timetable screen's week (block) + course + teacher + room filters
+    // all params optional
+    public List<TimetableSessionDto> getFilteredSessions(Integer block, Long courseId, Long lecturerId, Long roomId) {
+        return timetableSessionRepository.findFiltered(block, courseId, lecturerId, roomId).stream()
+                .map(TimetableSessionDto::fromEntity)
+                .toList();
+    }
 }

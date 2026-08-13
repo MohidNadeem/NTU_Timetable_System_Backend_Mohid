@@ -5,6 +5,7 @@ import com.ntu.timetabling.service.TimetableService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -22,7 +23,12 @@ public class TimetableController {
     private final TimetableService timetableService;
 
     @GetMapping
-    public List<TimetableSessionDto> getAllSessions() {
-        return timetableService.getAllSessions();
+    public List<TimetableSessionDto> getSessions(
+            @RequestParam(required = false) Integer block,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long lecturerId,
+            @RequestParam(required = false) Long roomId
+    ) {
+        return timetableService.getFilteredSessions(block, courseId, lecturerId, roomId);
     }
 }

@@ -9,6 +9,8 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * The self-seeded, mock "live timetable" (Increment 0). Stands in for NTU's
@@ -53,6 +55,28 @@ public class TimetableSession {
 
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
+
+    // adding this so the timetable can be split into 26/27's 4 teaching blocks
+    @Column(nullable = false, columnDefinition = "TINYINT")
+    private int block;
+
+    // distinguishing repeated slots of the same type/module in a week (e.g. "Lecture 1" vs "Lecture 2")
+    @Column(name = "part_number", columnDefinition = "TINYINT")
+    private Integer partNumber;
+
+    // using this to override the default type-based name for anything non-standard (e.g. MP's briefing/supervision)
+    @Column(name = "session_label", length = 100)
+    private String sessionLabel;
+
+    // linking which course(s)/section(s) this session is for, so combined vs split sessions can be told apart
+    @ManyToMany
+    @JoinTable(
+            name = "session_courses",
+            joinColumns = @JoinColumn(name = "session_id"),
+            inverseJoinColumns = @JoinColumn(name = "course_id")
+    )
+    @Builder.Default
+    private Set<Course> courses = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
