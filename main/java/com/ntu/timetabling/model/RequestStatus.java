@@ -1,8 +1,10 @@
 package com.ntu.timetabling.model;
 
 public enum RequestStatus {
-    PENDING,
+    AWAITING_DECISION,
+    DRAFT_COMPLETE,
     IN_PROGRESS,
-    ACTIONED,
-    REJECTED
+    ACCEPTED,
+    REJECTED,
+    COMPLETE
 }

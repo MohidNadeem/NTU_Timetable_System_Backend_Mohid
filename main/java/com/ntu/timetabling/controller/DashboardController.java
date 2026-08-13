@@ -1,30 +1,32 @@
 package com.ntu.timetabling.controller;
 
+import com.ntu.timetabling.dto.LecturerDashboardDto;
+import com.ntu.timetabling.service.LecturerDashboardService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
 /**
- * Placeholder dashboard endpoints. The goal right now is just proving the
- * login -> JWT -> role-gated route pipeline works end to end; these get
- * replaced/extended as Increment 1 (and later increments) are built out on
- * top of them.
+ * Increment 1: name, teaching load, and request
+ * status summary
+ *
+ * Timetabling Team side has still the placeholder
  */
 @Slf4j
 @RestController
+@RequiredArgsConstructor
 public class DashboardController {
 
+    private final LecturerDashboardService lecturerDashboardService;
+
     @GetMapping("/api/lecturer/dashboard")
-    public ResponseEntity<?> lecturerDashboard(Authentication authentication) {
-        log.info("Lecturer dashboard hit by user: {}", authentication.getName());
-        return ResponseEntity.ok(Map.of(
-                "message", "Lecturer dashboard placeholder - logged in as " + authentication.getName()
-        ));
+    public ResponseEntity<LecturerDashboardDto> lecturerDashboard(Authentication authentication) {
+        return ResponseEntity.ok(lecturerDashboardService.getDashboard(authentication.getName()));
     }
 
     @GetMapping("/api/timetabling-team/dashboard")

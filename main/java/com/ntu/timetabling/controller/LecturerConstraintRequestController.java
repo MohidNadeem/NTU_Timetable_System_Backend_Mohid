@@ -1,6 +1,7 @@
 package com.ntu.timetabling.controller;
 
-import com.ntu.timetabling.dto.ConstraintRequestCreateDto;
+import com.ntu.timetabling.dto.ModuleConstraintCreateDto;
+import com.ntu.timetabling.dto.PersonalConstraintCreateDto;
 import com.ntu.timetabling.dto.RequestDto;
 import com.ntu.timetabling.service.ConstraintRequestService;
 import jakarta.validation.Valid;
@@ -13,8 +14,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Increment 1 (FR1, FR2, FR9) - lecturer side: submit a constraint request
- * ahead of the annual timetable, and view their own past submissions.
+ * Increment 1 - lecturer side: submit a constraint request (module-based or personal)
+ * and view their own past submissions.
  */
 @RestController
 @RequestMapping("/api/lecturer/requests/constraints")
@@ -23,10 +24,17 @@ public class LecturerConstraintRequestController {
 
     private final ConstraintRequestService constraintRequestService;
 
-    @PostMapping
-    public ResponseEntity<RequestDto> submit(Authentication authentication,
-                                              @Valid @RequestBody ConstraintRequestCreateDto dto) {
-        RequestDto created = constraintRequestService.submitConstraintRequest(authentication.getName(), dto);
+    @PostMapping("/module")
+    public ResponseEntity<RequestDto> submitModule(Authentication authentication,
+                                                     @Valid @RequestBody ModuleConstraintCreateDto dto) {
+        RequestDto created = constraintRequestService.submitModuleConstraint(authentication.getName(), dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/personal")
+    public ResponseEntity<RequestDto> submitPersonal(Authentication authentication,
+                                                       @Valid @RequestBody PersonalConstraintCreateDto dto) {
+        RequestDto created = constraintRequestService.submitPersonalConstraint(authentication.getName(), dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
