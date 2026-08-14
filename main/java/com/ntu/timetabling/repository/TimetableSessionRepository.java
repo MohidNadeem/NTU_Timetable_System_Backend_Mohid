@@ -14,6 +14,10 @@ public interface TimetableSessionRepository extends JpaRepository<TimetableSessi
     // grabbing just one session per module is enough since every module in the data sits in exactly one block
     Optional<TimetableSession> findFirstByModuleId(Long moduleId);
 
+    // used by violation-checking, which needs every session for a module (lecture, lab, seminar, etc.)
+    // to find the one matching a constraint's inferred activity type
+    List<TimetableSession> findByModuleId(Long moduleId);
+
     // for the lecturer dashboard's "modules I teach" list
     List<TimetableSession> findByLecturerIdOrderByBlockAsc(Long lecturerId);
 

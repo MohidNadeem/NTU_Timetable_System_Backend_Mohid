@@ -1,15 +1,14 @@
 package com.ntu.timetabling.controller;
 
 import com.ntu.timetabling.dto.LecturerDashboardDto;
+import com.ntu.timetabling.dto.TimetablingTeamDashboardDto;
 import com.ntu.timetabling.service.LecturerDashboardService;
+import com.ntu.timetabling.service.TimetablingTeamDashboardService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 /**
  * Increment 1: name, teaching load, and request
@@ -17,12 +16,12 @@ import java.util.Map;
  *
  * Timetabling Team side has still the placeholder
  */
-@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class DashboardController {
 
     private final LecturerDashboardService lecturerDashboardService;
+    private final TimetablingTeamDashboardService timetablingTeamDashboardService;
 
     @GetMapping("/api/lecturer/dashboard")
     public ResponseEntity<LecturerDashboardDto> lecturerDashboard(Authentication authentication) {
@@ -30,10 +29,7 @@ public class DashboardController {
     }
 
     @GetMapping("/api/timetabling-team/dashboard")
-    public ResponseEntity<?> timetablingTeamDashboard(Authentication authentication) {
-        log.info("Timetabling Team dashboard hit by user: {}", authentication.getName());
-        return ResponseEntity.ok(Map.of(
-                "message", "Timetabling Team dashboard placeholder - logged in as " + authentication.getName()
-        ));
+    public ResponseEntity<TimetablingTeamDashboardDto> timetablingTeamDashboard(Authentication authentication) {
+        return ResponseEntity.ok(timetablingTeamDashboardService.getDashboard(authentication.getName()));
     }
 }

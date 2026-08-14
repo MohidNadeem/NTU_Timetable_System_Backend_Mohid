@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashSet;
@@ -165,6 +166,28 @@ public class Request {
 
     @Column(columnDefinition = "TEXT")
     private String note;
+
+    // ---- PERSONAL-constraint fields ------
+
+    // which day(s) of the week the lecturer is unavailable
+    @ElementCollection
+    @CollectionTable(name = "request_unavailable_days", joinColumns = @JoinColumn(name = "request_id"))
+    @Column(name = "day_of_week")
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Set<Weekday> unavailableDays = new HashSet<>();
+
+    @Column(name = "unavailable_from_date")
+    private LocalDate unavailableFromDate;
+
+    @Column(name = "unavailable_to_date")
+    private LocalDate unavailableToDate;
+
+    @Column(name = "unavailable_from_time")
+    private LocalTime unavailableFromTime;
+
+    @Column(name = "unavailable_to_time")
+    private LocalTime unavailableToTime;
 
     // ------------------------------------------------------------------------
 
