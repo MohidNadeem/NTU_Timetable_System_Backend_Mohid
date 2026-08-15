@@ -1,11 +1,14 @@
 package com.ntu.timetabling.controller;
 
+import com.ntu.timetabling.dto.SessionCreateDto;
 import com.ntu.timetabling.dto.SessionUpdateResultDto;
 import com.ntu.timetabling.dto.TimetableSessionDto;
 import com.ntu.timetabling.dto.UpdateSessionDto;
 import com.ntu.timetabling.service.SessionUpdateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,5 +29,12 @@ public class SessionUpdateController {
                                                  @Valid @RequestBody UpdateSessionDto dto,
                                                  Authentication authentication) {
         return sessionUpdateService.updateSession(id, dto, authentication.getName());
+    }
+
+    @PostMapping
+    public ResponseEntity<TimetableSessionDto> createSession(@Valid @RequestBody SessionCreateDto dto,
+                                                               Authentication authentication) {
+        TimetableSessionDto created = sessionUpdateService.createSession(dto, authentication.getName());
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 }

@@ -10,19 +10,25 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
- * Increment 1 (FR1/FR2): type = CONSTRAINT, split into two types
- * MODULE
- * PERSONAL
+ * Increment 1 (FR1/FR2): type = CONSTRAINT, split into two kinds via
+ * constraintKind:
+ *   MODULE   - the rich structured form (department, module, week/day/time,
+ *              room preferences, etc.) - most fields below apply only here
+ *   PERSONAL - a lightweight "I don't want X" request - only uses
+ *              department, campus, description ("explain your constraint")
+ *              and reason
  *
  * Increment 2 (FR3-FR9): type = CHANGE, submitted against an existing
  * timetable_sessions row (session).
  *
  * status starts at AWAITING_DECISION on submission and can only move
- * forward via the Timetabling Team - lecturers can never set it themselves.
+ * forward via the Timetabling Team - lecturers never set it themselves.
  */
 @Entity
 @Table(name = "requests")
@@ -41,7 +47,7 @@ public class Request {
     @Column(nullable = false)
     private RequestType type;
 
-    // only set when type = CONSTRAINT; distinguishes the two constraint forms
+    // only set when type = CONSTRAINT - distinguishes the two constraint forms
     @Enumerated(EnumType.STRING)
     @Column(name = "constraint_kind")
     private ConstraintKind constraintKind;
@@ -50,7 +56,7 @@ public class Request {
     @JoinColumn(name = "requester_id", nullable = false)
     private User requester;
 
-    // Only setting it for CHANGE requests (Increment 2)
+    // Only set for CHANGE requests (Increment 2)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id")
     private TimetableSession session;
@@ -60,7 +66,7 @@ public class Request {
     @Builder.Default
     private RequestStatus status = RequestStatus.AWAITING_DECISION;
 
-    // FR2: firm requirement vs flexible preference (CONSTRAINT requests only)
+    // FR2: firm requirement vs flexible preference (legacy, CONSTRAINT requests only)
     @Column(name = "is_firm")
     private Boolean isFirm;
 
@@ -68,7 +74,7 @@ public class Request {
     @Column(length = 50)
     private String category;
 
-    // PERSONAL: "explain your constraint".
+    // PERSONAL: "explain your constraint". MODULE: unused - structured fields carry the info.
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -151,6 +157,21 @@ public class Request {
     @JoinColumn(name = "specific_room_id")
     private Room specificRoom;
 
+    // several acceptable rooms rather than pinning to one specific room
+    @ManyToMany
+    @JoinTable(
+            name = "request_rooms",
+            joinColumns = @JoinColumn(name = "request_id"),
+            inverseJoinColumns = @JoinColumn(name = "room_id")
+    )
+    @Builder.Default
+    private Set<Room> allowedRooms = new HashSet<>();
+
+    // covers several lab/seminar groups in one request
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<RequestGroup> groups = new ArrayList<>();
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private RoomFeature feature = RoomFeature.NONE;
@@ -188,6 +209,35 @@ public class Request {
 
     @Column(name = "unavailable_to_time")
     private LocalTime unavailableToTime;
+
+    // ---- CHANGE-request fields (Increment 2) ------
+    @Column(name = "end_time")
+    private LocalTime endTime;
+
+    @Column(name = "room_booking_needed")
+    private Boolean roomBookingNeeded;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_room_answer")
+    private PreferredRoomAnswer preferredRoomAnswer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "change_category")
+    private ChangeCategory changeCategory;
+
+    @Column(columnDefinition = "TEXT")
+    private String rationale;
+
+    @Column(name = "benefit_to_students", columnDefinition = "TEXT")
+    private String benefitToStudents;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "academic_period")
+    private AcademicPeriod academicPeriod;
+
+    // the academic year label at submission time
+    @Column(name = "academic_year_label", length = 20)
+    private String academicYearLabel;
 
     // ------------------------------------------------------------------------
 

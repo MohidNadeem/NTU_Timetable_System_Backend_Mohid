@@ -1,6 +1,6 @@
 package com.ntu.timetabling.controller;
 
-import com.ntu.timetabling.dto.ViolationDto;
+import com.ntu.timetabling.dto.EffectResultDto;
 import com.ntu.timetabling.service.ViolationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +17,7 @@ public class ViolationController {
     private final ViolationService violationService;
 
     @GetMapping
-    public List<ViolationDto> getViolations() {
+    public List<EffectResultDto> getViolations() {
         return violationService.getViolations();
     }
 }

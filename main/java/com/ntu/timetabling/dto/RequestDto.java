@@ -8,6 +8,7 @@ import lombok.Getter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Set;
 
 @Getter
@@ -28,9 +29,11 @@ public class RequestDto {
     private String reason;
     private String reasonComment;
 
-    // module-based fields (null for PERSONAL requests)
+    // module-based / change fields (shared - department/module/block/weekMode/weeks/dayOfWeek/
+    // startTime apply to both MODULE constraints and CHANGE requests)
     private String departmentCode;
     private String departmentName;
+    private Long primaryModuleId;
     private String primaryModuleCode;
     private String primaryModuleName;
     private String linkedModuleCode;
@@ -50,6 +53,8 @@ public class RequestDto {
     private RoomLayout preferredRoomLayout;
     private Long specificRoomId;
     private String specificRoomName;
+    private List<String> allowedRoomNames;
+    private List<RequestGroupDto> groups;
     private RoomFeature feature;
     private String software;
     private String supportTeamStaff;
@@ -62,6 +67,18 @@ public class RequestDto {
     private LocalDate unavailableToDate;
     private LocalTime unavailableFromTime;
     private LocalTime unavailableToTime;
+
+    // CHANGE-request fields (null for CONSTRAINT requests)
+    private Long currentSessionId;
+    private String currentSessionSummary; // e.g. "TUE 09:00-11:00 · ERD105" - the actual scheduled session being asked about
+    private LocalTime endTime;
+    private Boolean roomBookingNeeded;
+    private PreferredRoomAnswer preferredRoomAnswer;
+    private ChangeCategory changeCategory;
+    private String rationale;
+    private String benefitToStudents;
+    private AcademicPeriod academicPeriod;
+    private String academicYearLabel;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -81,6 +98,7 @@ public class RequestDto {
                 .reasonComment(r.getReasonComment())
                 .departmentCode(r.getDepartment() != null ? r.getDepartment().getCode() : null)
                 .departmentName(r.getDepartment() != null ? r.getDepartment().getName() : null)
+                .primaryModuleId(r.getPrimaryModule() != null ? r.getPrimaryModule().getId() : null)
                 .primaryModuleCode(r.getPrimaryModule() != null ? r.getPrimaryModule().getCode() : null)
                 .primaryModuleName(r.getPrimaryModule() != null ? r.getPrimaryModule().getName() : null)
                 .linkedModuleCode(r.getLinkedModule() != null ? r.getLinkedModule().getCode() : null)
@@ -100,6 +118,8 @@ public class RequestDto {
                 .preferredRoomLayout(r.getPreferredRoomLayout())
                 .specificRoomId(r.getSpecificRoom() != null ? r.getSpecificRoom().getId() : null)
                 .specificRoomName(r.getSpecificRoom() != null ? r.getSpecificRoom().getName() : null)
+                .allowedRoomNames(r.getAllowedRooms().stream().map(Room::getName).sorted().toList())
+                .groups(r.getGroups().stream().map(RequestGroupDto::fromEntity).toList())
                 .feature(r.getFeature())
                 .software(r.getSoftware())
                 .supportTeamStaff(r.getSupportTeamStaff())
@@ -110,8 +130,23 @@ public class RequestDto {
                 .unavailableToDate(r.getUnavailableToDate())
                 .unavailableFromTime(r.getUnavailableFromTime())
                 .unavailableToTime(r.getUnavailableToTime())
+                .currentSessionId(r.getSession() != null ? r.getSession().getId() : null)
+                .currentSessionSummary(r.getSession() != null ? summariseSession(r.getSession()) : null)
+                .endTime(r.getEndTime())
+                .roomBookingNeeded(r.getRoomBookingNeeded())
+                .preferredRoomAnswer(r.getPreferredRoomAnswer())
+                .changeCategory(r.getChangeCategory())
+                .rationale(r.getRationale())
+                .benefitToStudents(r.getBenefitToStudents())
+                .academicPeriod(r.getAcademicPeriod())
+                .academicYearLabel(r.getAcademicYearLabel())
                 .createdAt(r.getCreatedAt())
                 .updatedAt(r.getUpdatedAt())
                 .build();
+    }
+
+    private static String summariseSession(TimetableSession s) {
+        return s.getDayOfWeek() + " " + s.getStartTime().toString().substring(0, 5)
+                + "-" + s.getEndTime().toString().substring(0, 5) + " · " + s.getRoom().getName();
     }
 }

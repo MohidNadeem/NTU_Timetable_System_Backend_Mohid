@@ -1,5 +1,6 @@
 package com.ntu.timetabling.service;
 
+import com.ntu.timetabling.dto.SessionCreateDto;
 import com.ntu.timetabling.dto.SessionUpdateResultDto;
 import com.ntu.timetabling.dto.TimetableSessionDto;
 import com.ntu.timetabling.dto.UpdateSessionDto;
@@ -27,6 +28,8 @@ public class SessionUpdateService {
     private final RoomRepository roomRepository;
     private final RequestRepository requestRepository;
     private final UserRepository userRepository;
+    private final ModuleRepository moduleRepository;
+    private final ClashCheckService clashCheckService;
 
     public TimetableSessionDto getSession(Long sessionId) {
         TimetableSession session = findSession(sessionId);
@@ -54,6 +57,10 @@ public class SessionUpdateService {
         }
 
         if (scope == WeekMode.ALL_REMAINING) {
+            Room roomForCheck = newRoom != null ? newRoom : session.getRoom();
+            clashCheckService.assertNoClash(session.getId(), session.getBlock(), newDay,
+                    dto.getStartTime(), dto.getEndTime(), roomForCheck, session.getLecturer());
+
             session.setDayOfWeek(newDay);
             session.setStartTime(dto.getStartTime());
             session.setEndTime(dto.getEndTime());
@@ -74,6 +81,10 @@ public class SessionUpdateService {
         if (weeks.isEmpty()) {
             throw new IllegalArgumentException("At least one week must be selected for scope " + scope);
         }
+
+        Room roomForCheck = newRoom != null ? newRoom : session.getRoom();
+        clashCheckService.assertNoClash(session.getId(), session.getBlock(), newDay,
+                dto.getStartTime(), dto.getEndTime(), roomForCheck, session.getLecturer());
 
         SessionOverride override = SessionOverride.builder()
                 .session(session)
@@ -100,5 +111,40 @@ public class SessionUpdateService {
     private TimetableSession findSession(Long id) {
         return timetableSessionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Session not found: " + id));
+    }
+
+    // "Add Session" - creates a new session to fulfil an Additional Session change request
+    public TimetableSessionDto createSession(SessionCreateDto dto, String actingUsername) {
+        ModuleEntity module = moduleRepository.findById(dto.getModuleId())
+                .orElseThrow(() -> new EntityNotFoundException("Module not found: " + dto.getModuleId()));
+        Room room = roomRepository.findById(dto.getRoomId())
+                .orElseThrow(() -> new EntityNotFoundException("Room not found: " + dto.getRoomId()));
+        Request relatedRequest = requestRepository.findById(dto.getRelatedRequestId())
+                .orElseThrow(() -> new EntityNotFoundException("Request not found: " + dto.getRelatedRequestId()));
+
+        User lecturer;
+        if (dto.getLecturerId() != null) {
+            lecturer = userRepository.findById(dto.getLecturerId())
+                    .orElseThrow(() -> new EntityNotFoundException("User not found: " + dto.getLecturerId()));
+        } else {
+            lecturer = relatedRequest.getRequester();
+        }
+
+        TimetableSession session = TimetableSession.builder()
+                .module(module)
+                .room(room)
+                .lecturer(lecturer)
+                .sessionType(SessionType.valueOf(dto.getSessionType()))
+                .dayOfWeek(Weekday.valueOf(dto.getDayOfWeek()))
+                .startTime(dto.getStartTime())
+                .endTime(dto.getEndTime())
+                .block(dto.getBlock())
+                .relatedRequest(relatedRequest)
+                .build();
+
+        clashCheckService.assertNoClash(null, dto.getBlock(), session.getDayOfWeek(),
+                session.getStartTime(), session.getEndTime(), room, lecturer);
+
+        return TimetableSessionDto.fromEntity(timetableSessionRepository.save(session));
     }
 }

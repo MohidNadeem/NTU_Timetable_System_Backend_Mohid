@@ -22,6 +22,7 @@ public class TimetablingTeamDashboardService {
     private final UserRepository userRepository;
     private final RequestRepository requestRepository;
     private final ViolationService violationService;
+    private final ChangesInQueueService changesInQueueService;
 
     public TimetablingTeamDashboardDto getDashboard(String username) {
         User member = userRepository.findByUsername(username)

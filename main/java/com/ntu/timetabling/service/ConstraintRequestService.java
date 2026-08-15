@@ -3,6 +3,7 @@ package com.ntu.timetabling.service;
 import com.ntu.timetabling.dto.ModuleConstraintCreateDto;
 import com.ntu.timetabling.dto.PersonalConstraintCreateDto;
 import com.ntu.timetabling.dto.RequestDto;
+import com.ntu.timetabling.dto.RequestGroupCreateDto;
 import com.ntu.timetabling.dto.UpdateRequestStatusDto;
 import com.ntu.timetabling.model.*;
 import com.ntu.timetabling.repository.*;
@@ -44,22 +45,24 @@ public class ConstraintRequestService {
                     .orElseThrow(() -> new EntityNotFoundException("Module not found: " + dto.getLinkedModuleId()));
         }
 
-        Room specificRoom = null;
-        if (dto.getSpecificRoomId() != null) {
-            specificRoom = roomRepository.findById(dto.getSpecificRoomId())
-                    .orElseThrow(() -> new EntityNotFoundException("Room not found: " + dto.getSpecificRoomId()));
+        Set<Room> allowedRooms = new HashSet<>();
+        if (dto.getAllowedRoomIds() != null) {
+            for (Long roomId : dto.getAllowedRoomIds()) {
+                allowedRooms.add(roomRepository.findById(roomId)
+                        .orElseThrow(() -> new EntityNotFoundException("Room not found: " + roomId)));
+            }
         }
 
         WeekMode weekMode = WeekMode.valueOf(dto.getWeekMode());
-        Weekday dayOfWeek = Weekday.valueOf(dto.getDayOfWeek());
+        // day/time are now optional per evaluation feedback - null means "no preference, Academics will decide"
+        Weekday dayOfWeek = dto.getDayOfWeek() != null ? Weekday.valueOf(dto.getDayOfWeek()) : null;
         RoomType roomType = RoomType.valueOf(dto.getRoomType());
         RoomLayout preferredRoomLayout = dto.getPreferredRoomLayout() != null
                 ? RoomLayout.valueOf(dto.getPreferredRoomLayout()) : RoomLayout.NONE;
         RoomFeature feature = dto.getFeature() != null ? RoomFeature.valueOf(dto.getFeature()) : RoomFeature.NONE;
 
         // ALL_REMAINING applies to every remaining week in the block, so no explicit week rows are needed;
-        // SINGLE/MULTIPLE both just store whichever weeks are to be selected
-        // SINGLE - one row from dropdown; MULTIPLE - checkboxes
+        // SINGLE/MULTIPLE both just store whichever weeks were selected (SINGLE happens to be one row)
         Set<Integer> weeks = weekMode == WeekMode.ALL_REMAINING
                 ? new HashSet<>()
                 : new HashSet<>(dto.getWeeks() == null ? Set.of() : dto.getWeeks());
@@ -88,13 +91,29 @@ public class ConstraintRequestService {
                 .titleTechnical(dto.getTitleTechnical())
                 .roomType(roomType)
                 .preferredRoomLayout(preferredRoomLayout)
-                .specificRoom(specificRoom)
+                .allowedRooms(allowedRooms)
                 .feature(feature)
                 .software(dto.getSoftware())
                 .supportTeamStaff(dto.getSupportTeamStaff())
                 .lectureCapture(dto.getLectureCapture())
                 .note(dto.getNote())
                 .build();
+
+        // building groups after the request itself so each RequestGroup can reference its parent
+        if (dto.getGroups() != null) {
+            for (RequestGroupCreateDto groupDto : dto.getGroups()) {
+                User preferredLecturer = null;
+                if (groupDto.getPreferredLecturerId() != null) {
+                    preferredLecturer = userRepository.findById(groupDto.getPreferredLecturerId())
+                            .orElseThrow(() -> new EntityNotFoundException("User not found: " + groupDto.getPreferredLecturerId()));
+                }
+                request.getGroups().add(RequestGroup.builder()
+                        .request(request)
+                        .groupLabel(groupDto.getGroupLabel())
+                        .preferredLecturer(preferredLecturer)
+                        .build());
+            }
+        }
 
         return RequestDto.fromEntity(requestRepository.save(request));
     }

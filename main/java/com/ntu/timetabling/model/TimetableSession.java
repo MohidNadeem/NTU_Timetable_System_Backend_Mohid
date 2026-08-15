@@ -68,6 +68,12 @@ public class TimetableSession {
     @Column(name = "session_label", length = 100)
     private String sessionLabel;
 
+    // set when this session was created via the "Add Session" action
+    // to fulfil an Additional Session change request
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "related_request_id")
+    private Request relatedRequest;
+
     // linking which course(s)/section(s) this session is for, so combined vs split sessions can be told apart
     @ManyToMany
     @JoinTable(

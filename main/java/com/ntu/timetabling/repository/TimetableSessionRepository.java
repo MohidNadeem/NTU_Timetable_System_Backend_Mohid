@@ -21,6 +21,9 @@ public interface TimetableSessionRepository extends JpaRepository<TimetableSessi
     // for the lecturer dashboard's "modules I teach" list
     List<TimetableSession> findByLecturerIdOrderByBlockAsc(Long lecturerId);
 
+    // used by the "Additional Session" change-request effect check - has this already been added?
+    boolean existsByRelatedRequestId(Long relatedRequestId);
+
     // treating every filter as optional (NULL param = "don't filter on this") so one query covers every combination
     @Query("SELECT DISTINCT ts FROM TimetableSession ts LEFT JOIN ts.courses c " +
             "WHERE (:block IS NULL OR ts.block = :block) " +
