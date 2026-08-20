@@ -39,6 +39,6 @@ public class SessionCreateDto {
     @NotNull
     private Integer block;
 
-    @NotNull
+    // only set when this session fulfils a specific change/constraint request
     private Long relatedRequestId;
 }

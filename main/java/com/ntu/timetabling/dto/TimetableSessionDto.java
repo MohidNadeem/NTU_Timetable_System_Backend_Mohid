@@ -30,6 +30,9 @@ public class TimetableSessionDto {
     private String sessionLabel;
     // which course(s)/section(s) this session is for, e.g. ["CS","CC"] for a combined lecture
     private List<String> courseCodes;
+    // true when this row's day/time/room reflect a week-specific override rather than the base recurring pattern
+    @Builder.Default
+    private boolean isOverridden = false;
 
     public static TimetableSessionDto fromEntity(TimetableSession s) {
         return TimetableSessionDto.builder()

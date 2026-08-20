@@ -25,10 +25,11 @@ public class TimetableController {
     @GetMapping
     public List<TimetableSessionDto> getSessions(
             @RequestParam(required = false) Integer block,
+            @RequestParam(required = false) Integer week,
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) Long lecturerId,
             @RequestParam(required = false) Long roomId
     ) {
-        return timetableService.getFilteredSessions(block, courseId, lecturerId, roomId);
+        return timetableService.getFilteredSessions(block, week, courseId, lecturerId, roomId);
     }
 }

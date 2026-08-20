@@ -119,15 +119,21 @@ public class SessionUpdateService {
                 .orElseThrow(() -> new EntityNotFoundException("Module not found: " + dto.getModuleId()));
         Room room = roomRepository.findById(dto.getRoomId())
                 .orElseThrow(() -> new EntityNotFoundException("Room not found: " + dto.getRoomId()));
-        Request relatedRequest = requestRepository.findById(dto.getRelatedRequestId())
-                .orElseThrow(() -> new EntityNotFoundException("Request not found: " + dto.getRelatedRequestId()));
+
+        Request relatedRequest = null;
+        if (dto.getRelatedRequestId() != null) {
+            relatedRequest = requestRepository.findById(dto.getRelatedRequestId())
+                    .orElseThrow(() -> new EntityNotFoundException("Request not found: " + dto.getRelatedRequestId()));
+        }
 
         User lecturer;
         if (dto.getLecturerId() != null) {
             lecturer = userRepository.findById(dto.getLecturerId())
                     .orElseThrow(() -> new EntityNotFoundException("User not found: " + dto.getLecturerId()));
-        } else {
+        } else if (relatedRequest != null) {
             lecturer = relatedRequest.getRequester();
+        } else {
+            throw new IllegalArgumentException("A teacher must be selected when creating a session with no related request");
         }
 
         TimetableSession session = TimetableSession.builder()
