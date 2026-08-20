@@ -35,31 +35,78 @@ public class ChangeRequestService {
         ModuleEntity primaryModule = moduleRepository.findById(dto.getPrimaryModuleId())
                 .orElseThrow(() -> new EntityNotFoundException("Module not found: " + dto.getPrimaryModuleId()));
 
-        TimetableSession currentSession = timetableSessionRepository.findById(dto.getSessionId())
-                .orElseThrow(() -> new EntityNotFoundException("Session not found: " + dto.getSessionId()));
-
-        PreferredRoomAnswer preferredRoomAnswer = PreferredRoomAnswer.valueOf(dto.getPreferredRoomAnswer());
-        Room specificRoom = null;
-        if (preferredRoomAnswer == PreferredRoomAnswer.YES && dto.getSpecificRoomId() != null) {
-            specificRoom = roomRepository.findById(dto.getSpecificRoomId())
-                    .orElseThrow(() -> new EntityNotFoundException("Room not found: " + dto.getSpecificRoomId()));
-        } else if (preferredRoomAnswer == PreferredRoomAnswer.ONLINE) {
-            // resolving the seeded pseudo-room automatically so effect-checking always has a
-            // concrete room to compare against, without the frontend needing to know its id
-            specificRoom = roomRepository.findByName("ONLINE").orElse(null);
-        }
-
+        ChangeCategory changeCategory = ChangeCategory.valueOf(dto.getChangeCategory());
+        AcademicPeriod academicPeriod = AcademicPeriod.valueOf(dto.getAcademicPeriod());
         WeekMode weekMode = WeekMode.valueOf(dto.getWeekMode());
         Weekday dayOfWeek = dto.getDayOfWeek() != null ? Weekday.valueOf(dto.getDayOfWeek()) : null;
-        AcademicPeriod academicPeriod = AcademicPeriod.valueOf(dto.getAcademicPeriod());
-        ChangeCategory changeCategory = ChangeCategory.valueOf(dto.getChangeCategory());
 
         Set<Integer> weeks = weekMode == WeekMode.ALL_REMAINING
                 ? new HashSet<>()
                 : new HashSet<>(dto.getWeeks() == null ? Set.of() : dto.getWeeks());
-
         if (weekMode != WeekMode.ALL_REMAINING && weeks.isEmpty()) {
             throw new IllegalArgumentException("At least one week must be selected for weekMode " + weekMode);
+        }
+
+        boolean sessionOptional = changeCategory == ChangeCategory.ADDITIONAL_SESSION
+                || changeCategory == ChangeCategory.MERGE_SESSIONS_GROUPS
+                || changeCategory == ChangeCategory.STUDENT_ALLOCATION
+                || changeCategory == ChangeCategory.OTHER;
+        TimetableSession session = null;
+        if (!sessionOptional) {
+            if (dto.getSessionId() == null) {
+                throw new IllegalArgumentException("sessionId is required for category " + changeCategory);
+            }
+            session = timetableSessionRepository.findById(dto.getSessionId())
+                    .orElseThrow(() -> new EntityNotFoundException("Session not found: " + dto.getSessionId()));
+        } else if (dto.getSessionId() != null) {
+            session = timetableSessionRepository.findById(dto.getSessionId())
+                    .orElseThrow(() -> new EntityNotFoundException("Session not found: " + dto.getSessionId()));
+        }
+
+        TimetableSession clashingSession = null;
+        if (changeCategory == ChangeCategory.CLASHES) {
+            if (dto.getClashingSessionId() == null) {
+                throw new IllegalArgumentException("clashingSessionId is required for the Clashes category");
+            }
+            clashingSession = timetableSessionRepository.findById(dto.getClashingSessionId())
+                    .orElseThrow(() -> new EntityNotFoundException("Session not found: " + dto.getClashingSessionId()));
+        }
+
+        User preferredNewLecturer = null;
+        if (changeCategory == ChangeCategory.STAFF_CHANGE) {
+            if (dto.getPreferredNewLecturerId() == null) {
+                throw new IllegalArgumentException("preferredNewLecturerId is required for the Staff Change category");
+            }
+            preferredNewLecturer = userRepository.findById(dto.getPreferredNewLecturerId())
+                    .orElseThrow(() -> new EntityNotFoundException("User not found: " + dto.getPreferredNewLecturerId()));
+        }
+
+        Set<TimetableSession> mergeSessions = new HashSet<>();
+        if (changeCategory == ChangeCategory.MERGE_SESSIONS_GROUPS) {
+            if (dto.getMergeSessionIds() == null || dto.getMergeSessionIds().size() < 2) {
+                throw new IllegalArgumentException("At least 2 sessions must be selected to merge");
+            }
+            for (Long id : dto.getMergeSessionIds()) {
+                mergeSessions.add(timetableSessionRepository.findById(id)
+                        .orElseThrow(() -> new EntityNotFoundException("Session not found: " + id)));
+            }
+            // a merge is inherently an event for a specific week
+            if (weekMode != WeekMode.SINGLE || weeks.size() != 1) {
+                throw new IllegalArgumentException("Merge requests must specify exactly one week");
+            }
+        }
+
+        if (changeCategory == ChangeCategory.ADDITIONAL_SESSION && dto.getDeliveryType() == null) {
+            throw new IllegalArgumentException("deliveryType is required for the Additional Session category");
+        }
+
+        RoomType roomType = dto.getRoomType() != null ? RoomType.valueOf(dto.getRoomType()) : null;
+        Set<Room> allowedRooms = new HashSet<>();
+        if (dto.getAllowedRoomIds() != null) {
+            for (Long roomId : dto.getAllowedRoomIds()) {
+                allowedRooms.add(roomRepository.findById(roomId)
+                        .orElseThrow(() -> new EntityNotFoundException("Room not found: " + roomId)));
+            }
         }
 
         // snapshotting the current academic year label so this request keeps reading correctly
@@ -71,7 +118,10 @@ public class ChangeRequestService {
                 .requester(requester)
                 .department(department)
                 .primaryModule(primaryModule)
-                .session(currentSession)
+                .session(session)
+                .clashingSession(clashingSession)
+                .preferredNewLecturer(preferredNewLecturer)
+                .mergeSessions(mergeSessions)
                 .block(dto.getBlock())
                 .weekMode(weekMode)
                 .weeks(weeks)
@@ -79,9 +129,8 @@ public class ChangeRequestService {
                 .startTime(dto.getStartTime())
                 .endTime(dto.getEndTime())
                 .learningActivity(dto.getDeliveryType())
-                .roomBookingNeeded(dto.getRoomBookingNeeded())
-                .preferredRoomAnswer(preferredRoomAnswer)
-                .specificRoom(specificRoom)
+                .roomType(roomType)
+                .allowedRooms(allowedRooms)
                 .changeCategory(changeCategory)
                 .rationale(dto.getRationale())
                 .benefitToStudents(dto.getBenefitToStudents())

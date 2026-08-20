@@ -74,6 +74,21 @@ public class TimetableSession {
     @JoinColumn(name = "related_request_id")
     private Request relatedRequest;
 
+    // soft cancellation (Session Removal category)
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelled_by_request_id")
+    private Request cancelledByRequest;
+
+    // partial cancellation - specific weeks removed rather than the whole session
+    @ElementCollection
+    @CollectionTable(name = "session_cancelled_weeks", joinColumns = @JoinColumn(name = "session_id"))
+    @Column(name = "week_in_block", columnDefinition = "TINYINT")
+    @Builder.Default
+    private Set<Integer> cancelledWeeks = new HashSet<>();
+
     // linking which course(s)/section(s) this session is for, so combined vs split sessions can be told apart
     @ManyToMany
     @JoinTable(
@@ -90,5 +105,13 @@ public class TimetableSession {
     @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    public boolean isFullyCancelled() {
+        return cancelledAt != null;
+    }
+
+    public boolean isActiveInWeek(int week) {
+        return cancelledAt == null && !cancelledWeeks.contains(week);
     }
 }

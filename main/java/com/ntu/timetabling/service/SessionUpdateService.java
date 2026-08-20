@@ -1,5 +1,6 @@
 package com.ntu.timetabling.service;
 
+import com.ntu.timetabling.dto.CancelSessionDto;
 import com.ntu.timetabling.dto.SessionCreateDto;
 import com.ntu.timetabling.dto.SessionUpdateResultDto;
 import com.ntu.timetabling.dto.TimetableSessionDto;
@@ -10,6 +11,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -21,6 +23,7 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class SessionUpdateService {
 
     private final TimetableSessionRepository timetableSessionRepository;
@@ -50,6 +53,16 @@ public class SessionUpdateService {
                     .orElseThrow(() -> new EntityNotFoundException("Room not found: " + dto.getRoomId()));
         }
 
+        User newLecturer = null;
+        if (dto.getLecturerId() != null) {
+            newLecturer = userRepository.findById(dto.getLecturerId())
+                    .orElseThrow(() -> new EntityNotFoundException("User not found: " + dto.getLecturerId()));
+            if (scope != WeekMode.ALL_REMAINING) {
+                throw new IllegalArgumentException(
+                        "Reassigning the teacher is only supported for All Weeks Ahead scope - session_overrides doesn't carry a per-week teacher");
+            }
+        }
+
         Request relatedRequest = null;
         if (dto.getRelatedRequestId() != null) {
             relatedRequest = requestRepository.findById(dto.getRelatedRequestId())
@@ -58,14 +71,18 @@ public class SessionUpdateService {
 
         if (scope == WeekMode.ALL_REMAINING) {
             Room roomForCheck = newRoom != null ? newRoom : session.getRoom();
+            User lecturerForCheck = newLecturer != null ? newLecturer : session.getLecturer();
             clashCheckService.assertNoClash(session.getId(), session.getBlock(), newDay,
-                    dto.getStartTime(), dto.getEndTime(), roomForCheck, session.getLecturer());
+                    dto.getStartTime(), dto.getEndTime(), roomForCheck, lecturerForCheck);
 
             session.setDayOfWeek(newDay);
             session.setStartTime(dto.getStartTime());
             session.setEndTime(dto.getEndTime());
             if (newRoom != null) {
                 session.setRoom(newRoom);
+            }
+            if (newLecturer != null) {
+                session.setLecturer(newLecturer);
             }
             timetableSessionRepository.save(session);
 
@@ -146,10 +163,50 @@ public class SessionUpdateService {
                 .endTime(dto.getEndTime())
                 .block(dto.getBlock())
                 .relatedRequest(relatedRequest)
+                .sessionLabel(dto.getSessionLabel())
                 .build();
 
         clashCheckService.assertNoClash(null, dto.getBlock(), session.getDayOfWeek(),
                 session.getStartTime(), session.getEndTime(), room, lecturer);
+
+        TimetableSession saved = timetableSessionRepository.save(session);
+
+        if (dto.getRestrictToWeeks() != null && !dto.getRestrictToWeeks().isEmpty()) {
+            // making this a one-week (or few-week) session rather than a normal recurring one
+            int totalWeeks = AcademicBlockConfig.weeksInBlock(dto.getBlock());
+            for (int week = 1; week <= totalWeeks; week++) {
+                if (!dto.getRestrictToWeeks().contains(week)) {
+                    saved.getCancelledWeeks().add(week);
+                }
+            }
+            saved = timetableSessionRepository.save(saved);
+        }
+
+        return TimetableSessionDto.fromEntity(saved);
+    }
+
+    // "Cancel Session" (Session Removal category, and the removal step of a Merge)
+    public TimetableSessionDto cancelSession(Long sessionId, CancelSessionDto dto, String actingUsername) {
+        TimetableSession session = findSession(sessionId);
+
+        Request relatedRequest = null;
+        if (dto.getRelatedRequestId() != null) {
+            relatedRequest = requestRepository.findById(dto.getRelatedRequestId())
+                    .orElseThrow(() -> new EntityNotFoundException("Request not found: " + dto.getRelatedRequestId()));
+        }
+
+        WeekMode scope = WeekMode.valueOf(dto.getScope());
+
+        if (scope == WeekMode.ALL_REMAINING) {
+            session.setCancelledAt(java.time.LocalDateTime.now());
+            session.setCancelledByRequest(relatedRequest);
+        } else {
+            Set<Integer> weeks = dto.getWeeks() == null ? Set.of() : new HashSet<>(dto.getWeeks());
+            if (weeks.isEmpty()) {
+                throw new IllegalArgumentException("At least one week must be selected for scope " + scope);
+            }
+            session.getCancelledWeeks().addAll(weeks);
+        }
 
         return TimetableSessionDto.fromEntity(timetableSessionRepository.save(session));
     }

@@ -43,6 +43,7 @@ public class TimetableService {
     // all params optional
     public List<TimetableSessionDto> getFilteredSessions(Integer block, Integer week, Long courseId, Long lecturerId, Long roomId) {
         return timetableSessionRepository.findFiltered(block, courseId, lecturerId, roomId).stream()
+                .filter(s -> week != null ? s.isActiveInWeek(week) : !s.isFullyCancelled())
                 .map(s -> applyOverrideIfAny(s, week))
                 .toList();
     }

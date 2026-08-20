@@ -6,5 +6,9 @@ public enum SessionType {
     LAB,
     TUTORIAL,
     SURGERY,
-    PROJECT
+    PROJECT,
+    WORKSHOP,
+    ASSESSMENT,
+    DROP_IN,
+    OTHER
 }

@@ -61,6 +61,17 @@ public class Request {
     @JoinColumn(name = "session_id")
     private TimetableSession session;
 
+    // CLASHES category only - the other session this one clashes with (session above is the
+    // lecturer's own)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clashing_session_id")
+    private TimetableSession clashingSession;
+
+    // STAFF_CHANGE category only - who the lecturer would like teaching it instead
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "preferred_new_lecturer_id")
+    private User preferredNewLecturer;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -167,7 +178,19 @@ public class Request {
     @Builder.Default
     private Set<Room> allowedRooms = new HashSet<>();
 
-    // covers several lab/seminar groups in one request
+    // CHANGE requests, "Merge sessions/groups" category
+    // which existing sessions the lecturer wants combined into one.
+    // Empty for every other category/kind.
+    @ManyToMany
+    @JoinTable(
+            name = "request_merge_sessions",
+            joinColumns = @JoinColumn(name = "request_id"),
+            inverseJoinColumns = @JoinColumn(name = "session_id")
+    )
+    @Builder.Default
+    private Set<TimetableSession> mergeSessions = new HashSet<>();
+
+    // module-based constraints: covers several lab/seminar groups in one request
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<RequestGroup> groups = new ArrayList<>();

@@ -89,7 +89,7 @@ public class EffectService {
                         .build());
             }
         } else if (candidates.size() > 1) {
-            // no groups given, but more than one session of this type exists
+            // no groups given, but more than one session of this type exists - genuinely can't
             items.add(unmatchedItem(module, r, inferredType, allowedRoomNames)
                     .toBuilder().actionType(ActionType.MANUAL_REVIEW).build());
         } else if (candidates.isEmpty()) {
@@ -152,10 +152,11 @@ public class EffectService {
 
     private EffectResultDto computeChangeRequestEffect(Request r) {
         ModuleEntity module = r.getPrimaryModule();
+        ChangeCategory category = r.getChangeCategory();
 
-        if (r.getChangeCategory() == ChangeCategory.ADDITIONAL_SESSION) {
+        if (category == ChangeCategory.ADDITIONAL_SESSION) {
             boolean alreadyAdded = timetableSessionRepository.existsByRelatedRequestId(r.getId());
-            String requestedRoomName = r.getSpecificRoom() != null ? r.getSpecificRoom().getName() : null;
+            Set<String> allowedRoomNames = r.getAllowedRooms().stream().map(Room::getName).collect(Collectors.toSet());
 
             List<EffectItemDto> items = alreadyAdded ? List.of() : List.of(EffectItemDto.builder()
                     .moduleCode(module.getCode())
@@ -164,16 +165,35 @@ public class EffectService {
                     .requestedDayOfWeek(r.getDayOfWeek() != null ? r.getDayOfWeek().name() : null)
                     .requestedStartTime(r.getStartTime())
                     .requestedEndTime(r.getEndTime())
-                    .requestedRoomName(requestedRoomName)
+                    .requestedRoomName(allowedRoomNames.isEmpty() ? null : String.join(" / ", allowedRoomNames))
                     .build());
 
             return summarise(r, module.getCode(), module.getName(), items);
         }
 
-        TimetableSession baseSession = r.getSession();
-        String requestedRoomName = r.getSpecificRoom() != null ? r.getSpecificRoom().getName() : null;
-        Set<String> allowedRoomNames = requestedRoomName != null ? Set.of(requestedRoomName) : Set.of();
+        if (category == ChangeCategory.CLASHES) {
+            return computeClashesEffect(r, module);
+        }
 
+        if (category == ChangeCategory.STAFF_CHANGE) {
+            return computeStaffChangeEffect(r, module);
+        }
+
+        if (category == ChangeCategory.SESSION_REMOVAL) {
+            return computeSessionRemovalEffect(r, module);
+        }
+
+        if (category == ChangeCategory.MERGE_SESSIONS_GROUPS) {
+            return computeMergeEffect(r, module);
+        }
+
+        // default "modify an existing session"
+        TimetableSession baseSession = r.getSession();
+        if (baseSession == null) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        Set<String> allowedRoomNames = r.getAllowedRooms().stream().map(Room::getName).collect(Collectors.toSet());
         boolean dayGiven = r.getDayOfWeek() != null;
         boolean timeGiven = r.getStartTime() != null;
         boolean roomGiven = !allowedRoomNames.isEmpty();
@@ -186,6 +206,157 @@ public class EffectService {
         List<EffectItemDto> items = cmp.satisfied() ? List.of() : List.of(
                 buildItem(baseSession, module, r, allowedRoomNames, cmp.unmatchedWeeks())
                         .toBuilder().actionType(ActionType.UPDATE_SESSION).build());
+
+        return summarise(r, module.getCode(), module.getName(), items);
+    }
+
+    // Clashes: satisfied once the two sessions no longer overlap in day/time.
+    private EffectResultDto computeClashesEffect(Request r, ModuleEntity module) {
+        TimetableSession mine = r.getSession();
+        TimetableSession clashing = r.getClashingSession();
+        if (mine == null || clashing == null) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        boolean stillClashes = mine.getDayOfWeek() == clashing.getDayOfWeek()
+                && mine.getStartTime().isBefore(clashing.getEndTime())
+                && clashing.getStartTime().isBefore(mine.getEndTime());
+
+        if (!stillClashes) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        EffectItemDto item = EffectItemDto.builder()
+                .sessionId(mine.getId())
+                .moduleCode(module.getCode())
+                .moduleName(module.getName())
+                .sessionType(mine.getSessionType().name())
+                .actionType(ActionType.UPDATE_SESSION)
+                .currentDayOfWeek(mine.getDayOfWeek().name())
+                .currentStartTime(mine.getStartTime())
+                .currentEndTime(mine.getEndTime())
+                .currentRoomName(mine.getRoom().getName())
+                // "requested" here means "what it currently clashes with", not a preference -
+                .requestedDayOfWeek(clashing.getDayOfWeek().name())
+                .requestedStartTime(clashing.getStartTime())
+                .requestedEndTime(clashing.getEndTime())
+                .requestedRoomName(clashing.getModule().getCode() + " · " + clashing.getRoom().getName())
+                .build();
+
+        return summarise(r, module.getCode(), module.getName(), List.of(item));
+    }
+
+    // Staff change: satisfied once the session's actual teacher matches who was asked for.
+    private EffectResultDto computeStaffChangeEffect(Request r, ModuleEntity module) {
+        TimetableSession session = r.getSession();
+        User preferred = r.getPreferredNewLecturer();
+        if (session == null || preferred == null) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        if (session.getLecturer().getId().equals(preferred.getId())) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        EffectItemDto item = EffectItemDto.builder()
+                .sessionId(session.getId())
+                .moduleCode(module.getCode())
+                .moduleName(module.getName())
+                .sessionType(session.getSessionType().name())
+                .actionType(ActionType.UPDATE_SESSION)
+                .currentDayOfWeek(session.getDayOfWeek().name())
+                .currentStartTime(session.getStartTime())
+                .currentEndTime(session.getEndTime())
+                .currentRoomName(session.getRoom().getName() + " (" + session.getLecturer().getFullName() + ")")
+                .requestedRoomName("Requested teacher: " + preferred.getFullName())
+                .build();
+
+        return summarise(r, module.getCode(), module.getName(), List.of(item));
+    }
+
+    // Session removal: satisfied once the session (fully, or for every requested week) is cancelled.
+    private EffectResultDto computeSessionRemovalEffect(Request r, ModuleEntity module) {
+        TimetableSession session = r.getSession();
+        if (session == null) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        boolean satisfied;
+        List<Integer> stillActiveWeeks = List.of();
+        if (r.getWeekMode() == null || r.getWeekMode() == WeekMode.ALL_REMAINING) {
+            satisfied = session.isFullyCancelled();
+        } else {
+            stillActiveWeeks = r.getWeeks().stream().filter(session::isActiveInWeek).sorted().toList();
+            satisfied = stillActiveWeeks.isEmpty();
+        }
+
+        if (satisfied) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        EffectItemDto item = EffectItemDto.builder()
+                .sessionId(session.getId())
+                .moduleCode(module.getCode())
+                .moduleName(module.getName())
+                .sessionType(session.getSessionType().name())
+                .actionType(ActionType.CANCEL_SESSION)
+                .currentDayOfWeek(session.getDayOfWeek().name())
+                .currentStartTime(session.getStartTime())
+                .currentEndTime(session.getEndTime())
+                .currentRoomName(session.getRoom().getName())
+                .unmatchedWeeks(stillActiveWeeks.isEmpty() ? null : stillActiveWeeks)
+                .build();
+
+        return summarise(r, module.getCode(), module.getName(), List.of(item));
+    }
+
+    // Merge sessions/groups: per your instruction, TT first cancels every constituent session,
+    // then creates one new session to replace them (Add Session, tracked via relatedRequestId
+    // exactly like Additional Session already is).
+    // Merge sessions/groups: always exactly one week (enforced at submission) - per your
+    // instruction, cancel the constituent sessions for THAT WEEK ONLY, then create one
+    // replacement session restricted to that same single week (not a permanent recurring one).
+    private EffectResultDto computeMergeEffect(Request r, ModuleEntity module) {
+        List<EffectItemDto> items = new ArrayList<>();
+        Integer targetWeek = r.getWeeks().stream().findFirst().orElse(null);
+        if (targetWeek == null) {
+            return summarise(r, module.getCode(), module.getName(), List.of());
+        }
+
+        for (TimetableSession s : r.getMergeSessions()) {
+            if (!s.isActiveInWeek(targetWeek)) continue; // already cancelled for this specific week
+            items.add(EffectItemDto.builder()
+                    .sessionId(s.getId())
+                    .moduleCode(s.getModule().getCode())
+                    .moduleName(s.getModule().getName())
+                    .sessionType(s.getSessionType().name())
+                    .actionType(ActionType.CANCEL_SESSION)
+                    .currentDayOfWeek(s.getDayOfWeek().name())
+                    .currentStartTime(s.getStartTime())
+                    .currentEndTime(s.getEndTime())
+                    .currentRoomName(s.getRoom().getName())
+                    .unmatchedWeeks(List.of(targetWeek))
+                    .build());
+        }
+
+        if (items.isEmpty()) {
+            // both constituent sessions are cancelled for the target week - now the one-week
+            // merged replacement needs creating
+            boolean alreadyAdded = timetableSessionRepository.existsByRelatedRequestId(r.getId());
+            if (!alreadyAdded) {
+                Set<String> allowedRoomNames = r.getAllowedRooms().stream().map(Room::getName).collect(Collectors.toSet());
+                items.add(EffectItemDto.builder()
+                        .moduleCode(module.getCode())
+                        .moduleName(module.getName())
+                        .actionType(ActionType.ADD_SESSION)
+                        .requestedDayOfWeek(r.getDayOfWeek() != null ? r.getDayOfWeek().name() : null)
+                        .requestedStartTime(r.getStartTime())
+                        .requestedEndTime(r.getEndTime())
+                        .requestedRoomName(allowedRoomNames.isEmpty() ? null : String.join(" / ", allowedRoomNames))
+                        .unmatchedWeeks(List.of(targetWeek))
+                        .build());
+            }
+        }
 
         return summarise(r, module.getCode(), module.getName(), items);
     }
@@ -287,6 +458,9 @@ public class EffectService {
         if (a.contains("tutorial")) return SessionType.TUTORIAL;
         if (a.contains("surgery")) return SessionType.SURGERY;
         if (a.contains("lecture")) return SessionType.LECTURE;
+        if (a.contains("workshop")) return SessionType.WORKSHOP;
+        if (a.contains("assessment")) return SessionType.ASSESSMENT;
+        if (a.contains("drop-in") || a.contains("drop in")) return SessionType.DROP_IN;
         return null;
     }
 }

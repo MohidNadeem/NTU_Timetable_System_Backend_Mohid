@@ -1,5 +1,6 @@
 package com.ntu.timetabling.controller;
 
+import com.ntu.timetabling.dto.CancelSessionDto;
 import com.ntu.timetabling.dto.SessionCreateDto;
 import com.ntu.timetabling.dto.SessionUpdateResultDto;
 import com.ntu.timetabling.dto.TimetableSessionDto;
@@ -36,5 +37,12 @@ public class SessionUpdateController {
                                                                Authentication authentication) {
         TimetableSessionDto created = sessionUpdateService.createSession(dto, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public TimetableSessionDto cancelSession(@PathVariable Long id,
+                                              @Valid @RequestBody CancelSessionDto dto,
+                                              Authentication authentication) {
+        return sessionUpdateService.cancelSession(id, dto, authentication.getName());
     }
 }

@@ -24,6 +24,7 @@ public class ClashCheckService {
                                Room room, User lecturer) {
         List<TimetableSession> overlapping = timetableSessionRepository.findAll().stream()
                 .filter(s -> excludeSessionId == null || !s.getId().equals(excludeSessionId))
+                .filter(s -> !s.isFullyCancelled()) // a cancelled session no longer occupies its slot
                 .filter(s -> s.getBlock() == block)
                 .filter(s -> s.getDayOfWeek() == day)
                 .filter(s -> start.isBefore(s.getEndTime()) && s.getStartTime().isBefore(end))

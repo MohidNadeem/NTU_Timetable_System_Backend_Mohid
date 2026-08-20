@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalTime;
+import java.util.Set;
 
 /**
  * "Add Session" - creates a brand new TimetableSession to fulfil an
@@ -41,4 +42,9 @@ public class SessionCreateDto {
 
     // only set when this session fulfils a specific change/constraint request
     private Long relatedRequestId;
+
+    // a distinguishing name/code for the session
+    private String sessionLabel;
+
+    private Set<Integer> restrictToWeeks;
 }

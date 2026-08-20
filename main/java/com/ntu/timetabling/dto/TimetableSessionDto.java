@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class TimetableSessionDto {
     private Long id;
@@ -33,6 +33,10 @@ public class TimetableSessionDto {
     // true when this row's day/time/room reflect a week-specific override rather than the base recurring pattern
     @Builder.Default
     private boolean isOverridden = false;
+    // true when the whole session has been cancelled
+    // or when a specific week was requested
+    @Builder.Default
+    private boolean isCancelled = false;
 
     public static TimetableSessionDto fromEntity(TimetableSession s) {
         return TimetableSessionDto.builder()
@@ -53,6 +57,7 @@ public class TimetableSessionDto {
                         .map(c -> c.getCode())
                         .sorted()
                         .collect(Collectors.toList()))
+                .isCancelled(s.isFullyCancelled())
                 .build();
     }
 }

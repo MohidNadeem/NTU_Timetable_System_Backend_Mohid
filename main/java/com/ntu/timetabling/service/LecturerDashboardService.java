@@ -4,6 +4,7 @@ import com.ntu.timetabling.dto.LecturerDashboardDto;
 import com.ntu.timetabling.dto.ModuleDto;
 import com.ntu.timetabling.model.Request;
 import com.ntu.timetabling.model.RequestStatus;
+import com.ntu.timetabling.model.RequestType;
 import com.ntu.timetabling.model.User;
 import com.ntu.timetabling.repository.RequestRepository;
 import com.ntu.timetabling.repository.UserRepository;
@@ -35,8 +36,12 @@ public class LecturerDashboardService {
         for (RequestStatus s : RequestStatus.values()) {
             statusCounts.put(s.name(), 0L);
         }
+        Map<String, Long> changeCategoryCounts = new LinkedHashMap<>();
         for (Request r : requests) {
             statusCounts.merge(r.getStatus().name(), 1L, Long::sum);
+            if (r.getType() == RequestType.CHANGE && r.getChangeCategory() != null) {
+                changeCategoryCounts.merge(r.getChangeCategory().name(), 1L, Long::sum);
+            }
         }
 
         return LecturerDashboardDto.builder()
@@ -45,6 +50,7 @@ public class LecturerDashboardService {
                 .campus("Clifton")
                 .teachingModules(teachingModules)
                 .requestStatusCounts(statusCounts)
+                .changeCategoryCounts(changeCategoryCounts)
                 .totalRequests(requests.size())
                 .build();
     }

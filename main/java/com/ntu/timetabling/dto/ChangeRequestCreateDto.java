@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Set;
 
 // Change request submission.
@@ -22,9 +23,6 @@ public class ChangeRequestCreateDto {
     @NotBlank
     private String academicPeriod; // HALF_YEAR_1 | HALF_YEAR_2 | FULL_YEAR
 
-    @NotNull
-    private Boolean roomBookingNeeded;
-
     @NotBlank
     private String weekMode; // SINGLE | MULTIPLE | ALL_REMAINING
 
@@ -35,26 +33,33 @@ public class ChangeRequestCreateDto {
     private Integer block;
 
     // the lecturer's actual currently-scheduled session being asked about
-    @NotNull
+    // ADDITIONAL_SESSION (nothing exists yet) and MERGE_SESSIONS_GROUPS (uses mergeSessionIds instead)
     private Long sessionId;
+
+    // CLASHES only - the other session this one clashes with
+    private Long clashingSessionId;
+
+    // STAFF_CHANGE only - who the lecturer would like teaching it instead
+    private Long preferredNewLecturerId;
+
+    // MERGE_SESSIONS_GROUPS only - which existing sessions to combine (2+ expected)
+    private List<Long> mergeSessionIds;
 
     // preferred new slot - all optional, since a request might only be about e.g. the room
     private String dayOfWeek; // MON..FRI
     private LocalTime startTime;
     private LocalTime endTime;
 
-    @NotBlank
     private String deliveryType; // reuses the same learningActivity vocabulary as constraints
 
-    @NotBlank
-    private String preferredRoomAnswer; // YES | NO | ONLINE
 
-    // required only when preferredRoomAnswer is YES
-    private Long specificRoomId;
+    private String roomType;
+    private List<Long> allowedRoomIds;
 
     @NotBlank
     private String changeCategory;
 
+    // always required - the "what needs to happen" explanation
     @NotBlank
     private String rationale;
 

@@ -17,5 +17,7 @@ public class LecturerDashboardDto {
     private List<ModuleDto> teachingModules;
     // status name -> count, e.g. {"AWAITING_DECISION": 3, "ACCEPTED": 1, ...}
     private Map<String, Long> requestStatusCounts;
+    // change category -> count, for CHANGE-type requests only (e.g. {"SESSION_TIME": 2, "CLASHES": 1, ...})
+    private Map<String, Long> changeCategoryCounts;
     private long totalRequests;
 }

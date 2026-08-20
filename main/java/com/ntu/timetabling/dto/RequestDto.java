@@ -71,6 +71,11 @@ public class RequestDto {
     // CHANGE-request fields (null for CONSTRAINT requests)
     private Long currentSessionId;
     private String currentSessionSummary; // e.g. "TUE 09:00-11:00 · ERD105" - the actual scheduled session being asked about
+    private Long clashingSessionId;
+    private String clashingSessionSummary; // CLASHES category only
+    private Long preferredNewLecturerId;
+    private String preferredNewLecturerName; // STAFF_CHANGE category only
+    private List<MergeSessionDto> mergeSessions; // MERGE_SESSIONS_GROUPS category only
     private LocalTime endTime;
     private Boolean roomBookingNeeded;
     private PreferredRoomAnswer preferredRoomAnswer;
@@ -132,6 +137,12 @@ public class RequestDto {
                 .unavailableToTime(r.getUnavailableToTime())
                 .currentSessionId(r.getSession() != null ? r.getSession().getId() : null)
                 .currentSessionSummary(r.getSession() != null ? summariseSession(r.getSession()) : null)
+                .clashingSessionId(r.getClashingSession() != null ? r.getClashingSession().getId() : null)
+                .clashingSessionSummary(r.getClashingSession() != null ? summariseSessionWithModule(r.getClashingSession()) : null)
+                .preferredNewLecturerId(r.getPreferredNewLecturer() != null ? r.getPreferredNewLecturer().getId() : null)
+                .preferredNewLecturerName(r.getPreferredNewLecturer() != null ? r.getPreferredNewLecturer().getFullName() : null)
+                .mergeSessions(r.getMergeSessions().stream().map(MergeSessionDto::fromEntity)
+                        .sorted((a, b) -> a.getSummary().compareTo(b.getSummary())).toList())
                 .endTime(r.getEndTime())
                 .roomBookingNeeded(r.getRoomBookingNeeded())
                 .preferredRoomAnswer(r.getPreferredRoomAnswer())
@@ -145,8 +156,12 @@ public class RequestDto {
                 .build();
     }
 
-    private static String summariseSession(TimetableSession s) {
+    static String summariseSession(TimetableSession s) {
         return s.getDayOfWeek() + " " + s.getStartTime().toString().substring(0, 5)
                 + "-" + s.getEndTime().toString().substring(0, 5) + " · " + s.getRoom().getName();
+    }
+
+    static String summariseSessionWithModule(TimetableSession s) {
+        return s.getModule().getCode() + " " + summariseSession(s);
     }
 }

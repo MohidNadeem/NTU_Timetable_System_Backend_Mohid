@@ -29,6 +29,9 @@ public class UpdateSessionDto {
     // null = keep the session's current room
     private Long roomId;
 
+    // null = keep the session's current teacher.
+    private Long lecturerId;
+
     @NotBlank
     private String scope; // ALL_REMAINING | SINGLE | MULTIPLE
 
