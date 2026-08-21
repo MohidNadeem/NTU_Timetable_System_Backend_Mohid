@@ -31,16 +31,22 @@ public class LecturerDashboardService {
         List<ModuleDto> teachingModules = timetableService.getModulesTaughtBy(lecturer.getId());
         List<Request> requests = requestRepository.findByRequesterIdOrderByCreatedAtDesc(lecturer.getId());
 
-        // seeding every status at 0 first so the dashboard always shows all 6, not just the ones in use
-        Map<String, Long> statusCounts = new LinkedHashMap<>();
-        for (RequestStatus s : RequestStatus.values()) {
-            statusCounts.put(s.name(), 0L);
-        }
+        Map<String, Long> constraintStatusCounts = freshStatusMap();
+        Map<String, Long> changeStatusCounts = freshStatusMap();
         Map<String, Long> changeCategoryCounts = new LinkedHashMap<>();
+        long constraintTotal = 0;
+        long changeTotal = 0;
+
         for (Request r : requests) {
-            statusCounts.merge(r.getStatus().name(), 1L, Long::sum);
-            if (r.getType() == RequestType.CHANGE && r.getChangeCategory() != null) {
-                changeCategoryCounts.merge(r.getChangeCategory().name(), 1L, Long::sum);
+            if (r.getType() == RequestType.CONSTRAINT) {
+                constraintStatusCounts.merge(r.getStatus().name(), 1L, Long::sum);
+                constraintTotal++;
+            } else if (r.getType() == RequestType.CHANGE) {
+                changeStatusCounts.merge(r.getStatus().name(), 1L, Long::sum);
+                changeTotal++;
+                if (r.getChangeCategory() != null) {
+                    changeCategoryCounts.merge(r.getChangeCategory().name(), 1L, Long::sum);
+                }
             }
         }
 
@@ -49,9 +55,20 @@ public class LecturerDashboardService {
                 .school("School of Science and Technology")
                 .campus("Clifton")
                 .teachingModules(teachingModules)
-                .requestStatusCounts(statusCounts)
+                .constraintStatusCounts(constraintStatusCounts)
+                .constraintTotal(constraintTotal)
+                .changeStatusCounts(changeStatusCounts)
                 .changeCategoryCounts(changeCategoryCounts)
-                .totalRequests(requests.size())
+                .changeTotal(changeTotal)
                 .build();
+    }
+
+    // seeding every status at 0 first so the dashboard always shows all 6, not just the ones in use
+    private Map<String, Long> freshStatusMap() {
+        Map<String, Long> map = new LinkedHashMap<>();
+        for (RequestStatus s : RequestStatus.values()) {
+            map.put(s.name(), 0L);
+        }
+        return map;
     }
 }

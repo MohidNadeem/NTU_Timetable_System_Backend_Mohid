@@ -29,24 +29,44 @@ public class TimetablingTeamDashboardService {
                 .orElseThrow(() -> new BadCredentialsException("User not found"));
 
         // team-wide, not scoped to this one member
-        List<Request> requests = requestRepository.findByType(RequestType.CONSTRAINT);
+        List<Request> constraintRequests = requestRepository.findByType(RequestType.CONSTRAINT);
+        List<Request> changeRequests = requestRepository.findByType(RequestType.CHANGE);
 
-        Map<String, Long> statusCounts = new LinkedHashMap<>();
-        for (RequestStatus s : RequestStatus.values()) {
-            statusCounts.put(s.name(), 0L);
+        Map<String, Long> constraintStatusCounts = freshStatusMap();
+        for (Request r : constraintRequests) {
+            constraintStatusCounts.merge(r.getStatus().name(), 1L, Long::sum);
         }
-        for (Request r : requests) {
-            statusCounts.merge(r.getStatus().name(), 1L, Long::sum);
+
+        Map<String, Long> changeStatusCounts = freshStatusMap();
+        Map<String, Long> changeCategoryCounts = new LinkedHashMap<>();
+        for (Request r : changeRequests) {
+            changeStatusCounts.merge(r.getStatus().name(), 1L, Long::sum);
+            if (r.getChangeCategory() != null) {
+                changeCategoryCounts.merge(r.getChangeCategory().name(), 1L, Long::sum);
+            }
         }
 
         return TimetablingTeamDashboardDto.builder()
                 .fullName(member.getFullName())
                 .school("School of Science and Technology")
                 .campus("Clifton")
-                .requestStatusCounts(statusCounts)
-                .totalRequests(requests.size())
-                .awaitingDecisionCount(statusCounts.get(RequestStatus.AWAITING_DECISION.name()))
+                .constraintStatusCounts(constraintStatusCounts)
+                .constraintTotal(constraintRequests.size())
+                .changeStatusCounts(changeStatusCounts)
+                .changeCategoryCounts(changeCategoryCounts)
+                .changeTotal(changeRequests.size())
+                .awaitingDecisionCount(constraintStatusCounts.get(RequestStatus.AWAITING_DECISION.name())
+                        + changeStatusCounts.get(RequestStatus.AWAITING_DECISION.name()))
                 .violationCount(violationService.getViolations().size())
+                .changesInQueueCount(changesInQueueService.getChangesInQueue().size())
                 .build();
+    }
+
+    private Map<String, Long> freshStatusMap() {
+        Map<String, Long> map = new LinkedHashMap<>();
+        for (RequestStatus s : RequestStatus.values()) {
+            map.put(s.name(), 0L);
+        }
+        return map;
     }
 }

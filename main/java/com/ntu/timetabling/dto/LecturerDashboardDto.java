@@ -15,9 +15,13 @@ public class LecturerDashboardDto {
     private String school;   // fixed: "School of Science and Technology" (the set scope)
     private String campus;   // fixed: "Clifton" (the set scope)
     private List<ModuleDto> teachingModules;
-    // status name -> count, e.g. {"AWAITING_DECISION": 3, "ACCEPTED": 1, ...}
-    private Map<String, Long> requestStatusCounts;
-    // change category -> count, for CHANGE-type requests only (e.g. {"SESSION_TIME": 2, "CLASHES": 1, ...})
+
+    // Constraint requests only
+    private Map<String, Long> constraintStatusCounts;
+    private long constraintTotal;
+
+    // Change requests only - by status (same as constraints) and by category
+    private Map<String, Long> changeStatusCounts;
     private Map<String, Long> changeCategoryCounts;
-    private long totalRequests;
+    private long changeTotal;
 }

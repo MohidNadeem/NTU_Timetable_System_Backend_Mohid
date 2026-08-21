@@ -14,8 +14,13 @@ public class TimetablingTeamDashboardDto {
     private String school;
     private String campus;
     // status name -> count, across every lecturer's constraint requests
-    private Map<String, Long> requestStatusCounts;
-    private long totalRequests;
+    private Map<String, Long> constraintStatusCounts;
+    private long constraintTotal;
+    // status/category name -> count, across every lecturer's change requests
+    private Map<String, Long> changeStatusCounts;
+    private Map<String, Long> changeCategoryCounts;
+    private long changeTotal;
     private long awaitingDecisionCount;
     private long violationCount;
+    private long changesInQueueCount;
 }
