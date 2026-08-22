@@ -25,6 +25,7 @@ public class ChangeRequestService {
     private final TimetableSessionRepository timetableSessionRepository;
     private final UserRepository userRepository;
     private final AcademicYearService academicYearService;
+    private final NotificationService notificationService;
 
     public RequestDto submitChangeRequest(String username, ChangeRequestCreateDto dto) {
         User requester = findUser(username);
@@ -47,6 +48,8 @@ public class ChangeRequestService {
             throw new IllegalArgumentException("At least one week must be selected for weekMode " + weekMode);
         }
 
+        // sessionId is required for every category except ADDITIONAL_SESSION/MERGE_SESSIONS_GROUPS
+        // and STUDENT_ALLOCATION/OTHER
         boolean sessionOptional = changeCategory == ChangeCategory.ADDITIONAL_SESSION
                 || changeCategory == ChangeCategory.MERGE_SESSIONS_GROUPS
                 || changeCategory == ChangeCategory.STUDENT_ALLOCATION
@@ -138,7 +141,12 @@ public class ChangeRequestService {
                 .academicYearLabel(yearLabel)
                 .build();
 
-        return RequestDto.fromEntity(requestRepository.save(request));
+        Request saved = requestRepository.save(request);
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
+                requester.getFullName() + " submitted a change request for " + primaryModule.getCode()
+                        + " (" + changeCategory.name().toLowerCase().replace('_', ' ') + ").",
+                saved);
+        return RequestDto.fromEntity(saved);
     }
 
     public List<RequestDto> getMyChangeRequests(String username, RequestStatus status, ChangeCategory category) {

@@ -17,8 +17,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * scope = ALL_REMAINING updates the base TimetableSession's recurring pattern
- * scope = SINGLE or MULTIPLE instead creates a SessionOverride for just those week(s),
+ * Timetabling Team's "Update Session" feature - reusable for both resolving
+ * a violation and for Increment 2's change requests later.
+ *
+ * scope = ALL_REMAINING updates the base TimetableSession's recurring
+ * pattern directly (a genuine change going forward). scope = SINGLE or
+ * MULTIPLE instead creates a SessionOverride for just those week(s),
  * leaving the base pattern untouched for every other week.
  */
 @Service
@@ -33,6 +37,7 @@ public class SessionUpdateService {
     private final UserRepository userRepository;
     private final ModuleRepository moduleRepository;
     private final ClashCheckService clashCheckService;
+    private final CourseChangeNotificationService courseChangeNotificationService;
 
     public TimetableSessionDto getSession(Long sessionId) {
         TimetableSession session = findSession(sessionId);
@@ -85,6 +90,7 @@ public class SessionUpdateService {
                 session.setLecturer(newLecturer);
             }
             timetableSessionRepository.save(session);
+            courseChangeNotificationService.notifySessionUpdated(session);
 
             return SessionUpdateResultDto.builder()
                     .sessionId(session.getId())
@@ -116,6 +122,8 @@ public class SessionUpdateService {
                 .build();
 
         SessionOverride saved = sessionOverrideRepository.save(override);
+        courseChangeNotificationService.notifySessionUpdatedForWeeks(
+                session, weeks, newDay.name(), dto.getStartTime(), dto.getEndTime(), newRoom);
 
         return SessionUpdateResultDto.builder()
                 .sessionId(session.getId())
@@ -164,6 +172,8 @@ public class SessionUpdateService {
                 .block(dto.getBlock())
                 .relatedRequest(relatedRequest)
                 .sessionLabel(dto.getSessionLabel())
+                // auto-tagging with every course that offers this module
+                .courses(new java.util.HashSet<>(module.getCourses()))
                 .build();
 
         clashCheckService.assertNoClash(null, dto.getBlock(), session.getDayOfWeek(),
@@ -182,6 +192,7 @@ public class SessionUpdateService {
             saved = timetableSessionRepository.save(saved);
         }
 
+        courseChangeNotificationService.notifySessionCreated(saved);
         return TimetableSessionDto.fromEntity(saved);
     }
 
@@ -196,18 +207,25 @@ public class SessionUpdateService {
         }
 
         WeekMode scope = WeekMode.valueOf(dto.getScope());
+        Set<Integer> weeksBeingCancelled = null;
 
         if (scope == WeekMode.ALL_REMAINING) {
             session.setCancelledAt(java.time.LocalDateTime.now());
             session.setCancelledByRequest(relatedRequest);
         } else {
-            Set<Integer> weeks = dto.getWeeks() == null ? Set.of() : new HashSet<>(dto.getWeeks());
-            if (weeks.isEmpty()) {
+            weeksBeingCancelled = dto.getWeeks() == null ? Set.of() : new HashSet<>(dto.getWeeks());
+            if (weeksBeingCancelled.isEmpty()) {
                 throw new IllegalArgumentException("At least one week must be selected for scope " + scope);
             }
-            session.getCancelledWeeks().addAll(weeks);
+            session.getCancelledWeeks().addAll(weeksBeingCancelled);
         }
 
-        return TimetableSessionDto.fromEntity(timetableSessionRepository.save(session));
+        TimetableSession saved = timetableSessionRepository.save(session);
+        if (scope == WeekMode.ALL_REMAINING) {
+            courseChangeNotificationService.notifySessionCancelled(saved);
+        } else {
+            courseChangeNotificationService.notifySessionCancelledForWeeks(saved, weeksBeingCancelled);
+        }
+        return TimetableSessionDto.fromEntity(saved);
     }
 }

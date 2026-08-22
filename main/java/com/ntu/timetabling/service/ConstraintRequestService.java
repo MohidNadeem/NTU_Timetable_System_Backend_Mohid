@@ -29,6 +29,7 @@ public class ConstraintRequestService {
     private final CourseRepository courseRepository;
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public RequestDto submitModuleConstraint(String username, ModuleConstraintCreateDto dto) {
         User requester = findUser(username);
@@ -115,7 +116,11 @@ public class ConstraintRequestService {
             }
         }
 
-        return RequestDto.fromEntity(requestRepository.save(request));
+        Request saved = requestRepository.save(request);
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
+                requester.getFullName() + " submitted a module-based constraint for " + primaryModule.getCode() + ".",
+                saved);
+        return RequestDto.fromEntity(saved);
     }
 
     public RequestDto submitPersonalConstraint(String username, PersonalConstraintCreateDto dto) {
@@ -142,7 +147,10 @@ public class ConstraintRequestService {
                 .unavailableToTime(dto.getUnavailableToTime())
                 .build();
 
-        return RequestDto.fromEntity(requestRepository.save(request));
+        Request saved = requestRepository.save(request);
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
+                requester.getFullName() + " submitted a personal constraint.", saved);
+        return RequestDto.fromEntity(saved);
     }
 
     public List<RequestDto> getMyConstraintRequests(String username) {
@@ -181,7 +189,13 @@ public class ConstraintRequestService {
             request.setReasonComment(dto.getReasonComment());
         }
 
-        return RequestDto.fromEntity(requestRepository.save(request));
+        Request saved = requestRepository.save(request);
+        String what = request.getConstraintKind() != null ? "constraint" : "change request";
+        notificationService.notify(request.getRequester(), "REQUEST_STATUS_CHANGED",
+                "Your " + what + " (#" + request.getId() + ") is now " + newStatus.name().toLowerCase().replace('_', ' ') + ".",
+                request, null);
+
+        return RequestDto.fromEntity(saved);
     }
 
     private Request findRequest(Long id) {
