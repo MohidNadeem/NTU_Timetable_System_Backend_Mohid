@@ -10,9 +10,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Accounts are provisioned by an admin / DB seed - there is no self-registration
- * flow, since this system sits within a single organisation (NTU) and every
- * user is either a lecturer or a member of the timetabling team.
+ * Accounts are provisioned by an Admin (or DB seed) - there is no self-registration
+ * flow, since this system sits within a single organisation (NTU).
+ * Four roles now:
+ * Admin, Lecturer, Timetabling Team, and Student.
  */
 @Entity
 @Table(name = "users")
@@ -30,6 +31,9 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
+    @Column(nullable = false, unique = true, length = 255)
+    private String email;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -39,6 +43,17 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
+
+    // LEAVER applies to staff (Lecturer/Timetabling Team/Admin), ALUMNI to students
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_status", nullable = false)
+    @Builder.Default
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
+
+    // students only - their enrolled programme, used to route "this course changed" emails
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "course_id")
+    private Course course;
 
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;

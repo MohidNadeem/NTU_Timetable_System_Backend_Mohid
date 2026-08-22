@@ -3,6 +3,7 @@ package com.ntu.timetabling.service;
 import com.ntu.timetabling.dto.ChangePasswordRequest;
 import com.ntu.timetabling.dto.LoginRequest;
 import com.ntu.timetabling.dto.LoginResponse;
+import com.ntu.timetabling.model.AccountStatus;
 import com.ntu.timetabling.model.User;
 import com.ntu.timetabling.repository.UserRepository;
 import com.ntu.timetabling.security.JwtService;
@@ -34,6 +35,13 @@ public class AuthService {
 
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
+
+        // Leaver (staff) / Alumni (students) accounts are blocked from logging in
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new BadCredentialsException(
+                    "This account is no longer active (" + user.getAccountStatus().name().toLowerCase()
+                            + "). Please contact your administrator.");
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtService.generateToken(userDetails, Map.of(
