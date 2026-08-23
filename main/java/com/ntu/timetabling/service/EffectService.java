@@ -2,6 +2,7 @@ package com.ntu.timetabling.service;
 
 import com.ntu.timetabling.dto.EffectItemDto;
 import com.ntu.timetabling.dto.EffectResultDto;
+import com.ntu.timetabling.dto.WeekStateDto;
 import com.ntu.timetabling.model.*;
 import com.ntu.timetabling.repository.SessionOverrideRepository;
 import com.ntu.timetabling.repository.TimetableSessionRepository;
@@ -107,7 +108,7 @@ public class EffectService {
         return summarise(r, module.getCode(), module.getName(), items);
     }
 
-    // ---- PERSONAL constraint --------
+    // ---- PERSONAL constraint -------------------------------------------------
 
     private EffectResultDto computePersonalConstraintEffect(Request r) {
         Set<Weekday> unavailableDays = r.getUnavailableDays();
@@ -310,12 +311,6 @@ public class EffectService {
         return summarise(r, module.getCode(), module.getName(), List.of(item));
     }
 
-    // Merge sessions/groups: per your instruction, TT first cancels every constituent session,
-    // then creates one new session to replace them (Add Session, tracked via relatedRequestId
-    // exactly like Additional Session already is).
-    // Merge sessions/groups: always exactly one week (enforced at submission) - per your
-    // instruction, cancel the constituent sessions for THAT WEEK ONLY, then create one
-    // replacement session restricted to that same single week (not a permanent recurring one).
     private EffectResultDto computeMergeEffect(Request r, ModuleEntity module) {
         List<EffectItemDto> items = new ArrayList<>();
         Integer targetWeek = r.getWeeks().stream().findFirst().orElse(null);
@@ -394,6 +389,8 @@ public class EffectService {
 
     private EffectItemDto buildItem(TimetableSession candidate, ModuleEntity module, Request r,
                                      Set<String> allowedRoomNames, List<Integer> unmatchedWeeks) {
+        boolean isWeekScoped = r.getWeekMode() != null && r.getWeekMode() != WeekMode.ALL_REMAINING;
+
         return EffectItemDto.builder()
                 .sessionId(candidate.getId())
                 .moduleCode(module.getCode())
@@ -408,7 +405,38 @@ public class EffectService {
                 .requestedEndTime(r.getEndTime())
                 .requestedRoomName(allowedRoomNames.isEmpty() ? null : String.join(" / ", allowedRoomNames))
                 .unmatchedWeeks(unmatchedWeeks.isEmpty() ? null : unmatchedWeeks)
+                .currentStatesByWeek(isWeekScoped ? resolveCurrentStatesByWeek(candidate, r.getWeeks()) : null)
                 .build();
+    }
+
+    // resolves what a session is Actually scheduled as for each of the given weeks individually -
+    // the base pattern, unless a session_overrides row covers that specific week, in which case
+    // the override's day/time/room wins.
+    private List<WeekStateDto> resolveCurrentStatesByWeek(TimetableSession candidate, Set<Integer> weeks) {
+        List<SessionOverride> overrides = sessionOverrideRepository.findBySessionId(candidate.getId());
+        return weeks.stream().sorted().map(week -> {
+            SessionOverride match = overrides.stream()
+                    .filter(o -> o.getWeeks().contains(week))
+                    .max(Comparator.comparing(SessionOverride::getCreatedAt))
+                    .orElse(null);
+
+            if (match != null) {
+                return WeekStateDto.builder()
+                        .week(week)
+                        .dayOfWeek(match.getNewDayOfWeek().name())
+                        .startTime(match.getNewStartTime())
+                        .endTime(match.getNewEndTime())
+                        .roomName(match.getNewRoom() != null ? match.getNewRoom().getName() : candidate.getRoom().getName())
+                        .build();
+            }
+            return WeekStateDto.builder()
+                    .week(week)
+                    .dayOfWeek(candidate.getDayOfWeek().name())
+                    .startTime(candidate.getStartTime())
+                    .endTime(candidate.getEndTime())
+                    .roomName(candidate.getRoom().getName())
+                    .build();
+        }).toList();
     }
 
     private EffectItemDto unmatchedItem(ModuleEntity module, Request r, SessionType inferredType, Set<String> allowedRoomNames) {

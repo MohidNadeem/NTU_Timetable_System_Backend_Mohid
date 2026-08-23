@@ -10,6 +10,7 @@ import com.ntu.timetabling.repository.TimetableSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class TimetableService {
 
         Optional<SessionOverride> match = sessionOverrideRepository.findBySessionId(s.getId()).stream()
                 .filter(o -> o.getWeeks().contains(week))
-                .findFirst();
+                .max(Comparator.comparing(SessionOverride::getCreatedAt));
 
         if (match.isEmpty()) {
             return TimetableSessionDto.fromEntity(s);

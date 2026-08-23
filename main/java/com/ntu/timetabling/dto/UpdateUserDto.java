@@ -21,4 +21,5 @@ public class UpdateUserDto {
 
     // students only
     private Long courseId;
+    private String groupLabel;
 }

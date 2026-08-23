@@ -38,6 +38,9 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String fromAddress;
 
+    @Value("${app.mail.from-name:NTU Timetable System}")
+    private String fromName;
+
     public void send(String toEmail, String subject, String htmlBody, Course relatedCourse, TimetableSession relatedSession) {
         EmailLog.EmailLogBuilder logEntry = EmailLog.builder()
                 .recipientEmail(toEmail)
@@ -58,7 +61,7 @@ public class EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(fromAddress, "NTU Timetable System");
+            helper.setFrom(fromAddress, fromName);
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(htmlBody, true); // true = HTML content

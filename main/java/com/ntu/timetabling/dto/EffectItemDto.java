@@ -43,4 +43,7 @@ public class EffectItemDto {
 
     // only populated for Change requests with Single/Multiple week scope
     private List<Integer> unmatchedWeeks;
+
+    // populated for SINGLE/MULTIPLE week scope requests
+    private List<WeekStateDto> currentStatesByWeek;
 }

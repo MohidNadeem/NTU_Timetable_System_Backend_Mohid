@@ -109,6 +109,9 @@ public class SessionUpdateService {
         clashCheckService.assertNoClash(session.getId(), session.getBlock(), newDay,
                 dto.getStartTime(), dto.getEndTime(), roomForCheck, session.getLecturer());
 
+        // reconciling any existing overrides that already claim some of these weeks
+        reconcileOverlappingOverrides(session, weeks);
+
         SessionOverride override = SessionOverride.builder()
                 .session(session)
                 .newDayOfWeek(newDay)
@@ -227,5 +230,22 @@ public class SessionUpdateService {
             courseChangeNotificationService.notifySessionCancelledForWeeks(saved, weeksBeingCancelled);
         }
         return TimetableSessionDto.fromEntity(saved);
+    }
+
+    // ensures no week is ever claimed by more than one override for the same session
+    private void reconcileOverlappingOverrides(TimetableSession session, Set<Integer> newWeeks) {
+        for (SessionOverride existing : sessionOverrideRepository.findBySessionId(session.getId())) {
+            if (existing.getWeeks().stream().noneMatch(newWeeks::contains)) {
+                continue; // no overlap - leave this override untouched
+            }
+            Set<Integer> remaining = new HashSet<>(existing.getWeeks());
+            remaining.removeAll(newWeeks);
+            if (remaining.isEmpty()) {
+                sessionOverrideRepository.delete(existing);
+            } else {
+                existing.setWeeks(remaining);
+                sessionOverrideRepository.save(existing);
+            }
+        }
     }
 }

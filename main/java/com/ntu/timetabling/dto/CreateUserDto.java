@@ -24,4 +24,7 @@ public class CreateUserDto {
 
     // required when role = STUDENT
     private Long courseId;
+
+    // optional - which lab/seminar group they're in
+    private String groupLabel;
 }

@@ -20,6 +20,7 @@ public class UserAdminDto {
     private Long courseId;
     private String courseCode;
     private String courseName;
+    private String groupLabel;
     private boolean mustChangePassword;
     private LocalDateTime createdAt;
 
@@ -34,6 +35,7 @@ public class UserAdminDto {
                 .courseId(u.getCourse() != null ? u.getCourse().getId() : null)
                 .courseCode(u.getCourse() != null ? u.getCourse().getCode() : null)
                 .courseName(u.getCourse() != null ? u.getCourse().getName() : null)
+                .groupLabel(u.getGroupLabel())
                 .mustChangePassword(u.isMustChangePassword())
                 .createdAt(u.getCreatedAt())
                 .build();

@@ -128,13 +128,27 @@ public class CourseChangeNotificationService {
     }
 
     private void emailStudentsForSession(TimetableSession session, String subject, java.util.function.Function<User, String> bodyBuilder) {
+        // if the session's own label names a specific group (e.g. "Lab — Group A"),
+        // only students in that same group need emailing
+        String sessionGroup = extractGroupLabel(session.getSessionLabel());
+
         for (Course course : session.getCourses()) {
             List<User> students = userRepository.findByRoleAndCourseIdAndAccountStatus(
                     Role.STUDENT, course.getId(), AccountStatus.ACTIVE);
             for (User student : students) {
+                if (sessionGroup != null && student.getGroupLabel() != null && !sessionGroup.equals(student.getGroupLabel())) {
+                    continue;
+                }
                 emailService.send(student.getEmail(), subject, bodyBuilder.apply(student), course, session);
             }
         }
+    }
+
+    // pulls "Group A" (or similar) out of a session label like "Lab — Group A"
+    private String extractGroupLabel(String sessionLabel) {
+        if (sessionLabel == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("Group [A-Za-z0-9]+").matcher(sessionLabel);
+        return m.find() ? m.group() : null;
     }
 
     private String moduleRef(TimetableSession session) {

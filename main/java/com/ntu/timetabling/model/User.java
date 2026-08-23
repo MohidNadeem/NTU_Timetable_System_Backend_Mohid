@@ -55,6 +55,10 @@ public class User {
     @JoinColumn(name = "course_id")
     private Course course;
 
+    // students only - which lab/seminar group they're in, used to target group-specific change
+    @Column(name = "group_label", length = 50)
+    private String groupLabel;
+
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
 

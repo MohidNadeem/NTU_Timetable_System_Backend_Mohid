@@ -60,6 +60,7 @@ public class AdminUserService {
                 .role(role)
                 .accountStatus(AccountStatus.ACTIVE)
                 .course(course)
+                .groupLabel(role == Role.STUDENT ? dto.getGroupLabel() : null)
                 .passwordHash(passwordEncoder.encode(plaintextPassword))
                 .mustChangePassword(true)
                 .build();
@@ -107,6 +108,7 @@ public class AdminUserService {
             } else {
                 user.setCourse(null);
             }
+            user.setGroupLabel(dto.getGroupLabel());
         }
 
         return UserAdminDto.fromEntity(userRepository.save(user));
