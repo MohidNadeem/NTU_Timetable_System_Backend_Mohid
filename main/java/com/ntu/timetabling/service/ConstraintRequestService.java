@@ -9,6 +9,7 @@ import com.ntu.timetabling.model.*;
 import com.ntu.timetabling.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 
@@ -160,7 +161,7 @@ public class ConstraintRequestService {
                 .toList();
     }
 
-    // Timetabling Team side: can view every constraint request submitted so far.
+    /** Timetabling Team side: see every constraint request submitted so far. */
     public List<RequestDto> getAllConstraintRequests() {
         return requestRepository.findByType(RequestType.CONSTRAINT).stream()
                 .map(RequestDto::fromEntity)
@@ -169,6 +170,21 @@ public class ConstraintRequestService {
 
     public RequestDto getRequestById(Long id) {
         return RequestDto.fromEntity(findRequest(id));
+    }
+
+    // Same lookup, but for the shared /api/requests/{id} endpoint
+    public RequestDto getRequestByIdForUser(Long id, String username) {
+        Request request = findRequest(id);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
+
+        boolean isRequester = request.getRequester().getId().equals(user.getId());
+        boolean isTeamOrAdmin = user.getRole() == Role.TIMETABLING_TEAM || user.getRole() == Role.ADMIN;
+        if (!isRequester && !isTeamOrAdmin) {
+            throw new AccessDeniedException("You don't have access to this request");
+        }
+
+        return RequestDto.fromEntity(request);
     }
 
     // Timetabling Team side: move a request forward in the status flow.
