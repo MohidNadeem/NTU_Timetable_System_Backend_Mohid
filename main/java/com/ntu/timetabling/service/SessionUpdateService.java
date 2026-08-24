@@ -90,7 +90,7 @@ public class SessionUpdateService {
                 session.setLecturer(newLecturer);
             }
             timetableSessionRepository.save(session);
-            courseChangeNotificationService.notifySessionUpdated(session);
+            courseChangeNotificationService.notifySessionUpdated(session, actingUser);
 
             return SessionUpdateResultDto.builder()
                     .sessionId(session.getId())
@@ -126,7 +126,7 @@ public class SessionUpdateService {
 
         SessionOverride saved = sessionOverrideRepository.save(override);
         courseChangeNotificationService.notifySessionUpdatedForWeeks(
-                session, weeks, newDay.name(), dto.getStartTime(), dto.getEndTime(), newRoom);
+                session, weeks, newDay.name(), dto.getStartTime(), dto.getEndTime(), newRoom, actingUser);
 
         return SessionUpdateResultDto.builder()
                 .sessionId(session.getId())
@@ -143,6 +143,9 @@ public class SessionUpdateService {
 
     // "Add Session" - creates a new session to fulfil an Additional Session change request
     public TimetableSessionDto createSession(SessionCreateDto dto, String actingUsername) {
+        User actingUser = userRepository.findByUsername(actingUsername)
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
+
         ModuleEntity module = moduleRepository.findById(dto.getModuleId())
                 .orElseThrow(() -> new EntityNotFoundException("Module not found: " + dto.getModuleId()));
         Room room = roomRepository.findById(dto.getRoomId())
@@ -195,13 +198,15 @@ public class SessionUpdateService {
             saved = timetableSessionRepository.save(saved);
         }
 
-        courseChangeNotificationService.notifySessionCreated(saved);
+        courseChangeNotificationService.notifySessionCreated(saved, actingUser);
         return TimetableSessionDto.fromEntity(saved);
     }
 
     // "Cancel Session" (Session Removal category, and the removal step of a Merge)
     public TimetableSessionDto cancelSession(Long sessionId, CancelSessionDto dto, String actingUsername) {
         TimetableSession session = findSession(sessionId);
+        User actingUser = userRepository.findByUsername(actingUsername)
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
 
         Request relatedRequest = null;
         if (dto.getRelatedRequestId() != null) {
@@ -225,9 +230,9 @@ public class SessionUpdateService {
 
         TimetableSession saved = timetableSessionRepository.save(session);
         if (scope == WeekMode.ALL_REMAINING) {
-            courseChangeNotificationService.notifySessionCancelled(saved);
+            courseChangeNotificationService.notifySessionCancelled(saved, actingUser);
         } else {
-            courseChangeNotificationService.notifySessionCancelledForWeeks(saved, weeksBeingCancelled);
+            courseChangeNotificationService.notifySessionCancelledForWeeks(saved, weeksBeingCancelled, actingUser);
         }
         return TimetableSessionDto.fromEntity(saved);
     }

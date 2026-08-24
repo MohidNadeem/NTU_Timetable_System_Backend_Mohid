@@ -5,6 +5,7 @@ import com.ntu.timetabling.dto.UpdateRequestStatusDto;
 import com.ntu.timetabling.service.ConstraintRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -25,7 +26,8 @@ public class RequestReviewController {
     }
 
     @PutMapping("/{id}/status")
-    public RequestDto updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateRequestStatusDto dto) {
-        return constraintRequestService.updateStatus(id, dto);
+    public RequestDto updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateRequestStatusDto dto,
+                                    Authentication authentication) {
+        return constraintRequestService.updateStatus(id, dto, authentication.getName());
     }
 }

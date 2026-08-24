@@ -15,4 +15,7 @@ public class LoginResponse {
     private String fullName;
     private Role role;
     private boolean mustChangePassword;
+    // students only - lets the frontend default their Timetable filter to their own course,
+    // the same way a lecturer's already defaults to their own sessions
+    private Long courseId;
 }

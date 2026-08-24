@@ -56,6 +56,7 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .mustChangePassword(user.isMustChangePassword())
+                .courseId(user.getCourse() != null ? user.getCourse().getId() : null)
                 .build();
     }
 

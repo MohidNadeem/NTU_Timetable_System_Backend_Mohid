@@ -31,8 +31,9 @@ public class CourseChangeNotificationService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
 
-    public void notifySessionCreated(TimetableSession session) {
+    public void notifySessionCreated(TimetableSession session, User actor) {
         String subject = "New session added — " + session.getModule().getCode();
         emailStudentsForSession(session, subject, student -> EmailTemplateBuilder.create()
                 .heading("New Session Added")
@@ -44,14 +45,14 @@ public class CourseChangeNotificationService {
                 .closing("If you have any questions, please get in touch with your department.")
                 .build());
 
-        notificationService.notify(session.getLecturer(), "SESSION_CREATED",
-                "A new " + session.getSessionType().name().toLowerCase() + " session was added for "
-                        + session.getModule().getCode() + " (" + session.getDayOfWeek() + " " + session.getStartTime() + ").",
-                null, session);
+        String summary = "A new " + session.getSessionType().name().toLowerCase() + " session was added for "
+                + session.getModule().getCode() + " (" + session.getDayOfWeek() + " " + session.getStartTime() + ").";
+        notificationService.notify(session.getLecturer(), "SESSION_CREATED", summary, null, session);
+        activityLogService.log("SESSION_CREATED", summary, actor, session.getLecturer(), session, null);
     }
 
     // ALL_REMAINING scope - the session's regular weekly pattern has changed, going forward.
-    public void notifySessionUpdated(TimetableSession session) {
+    public void notifySessionUpdated(TimetableSession session, User actor) {
         String subject = "Session updated — " + session.getModule().getCode();
         emailStudentsForSession(session, subject, student -> EmailTemplateBuilder.create()
                 .heading("Session Time Changed")
@@ -63,15 +64,18 @@ public class CourseChangeNotificationService {
                 .closing("This applies to every remaining week this block, unless you hear from us again.")
                 .build());
 
+        String summary = "Session updated for " + session.getModule().getCode() + " — now "
+                + session.getDayOfWeek() + " " + session.getStartTime() + ", " + session.getRoom().getName() + ".";
         notificationService.notify(session.getLecturer(), "SESSION_UPDATED",
                 "Your " + session.getModule().getCode() + " session was updated by the Timetabling Team — "
                         + "now " + session.getDayOfWeek() + " " + session.getStartTime() + ", " + session.getRoom().getName() + ".",
                 null, session);
+        activityLogService.log("SESSION_UPDATED", summary, actor, session.getLecturer(), session, null);
     }
 
     // SINGLE/MULTIPLE scope - only the given weeks change; the regular pattern is unaffected.
     public void notifySessionUpdatedForWeeks(TimetableSession session, Set<Integer> weeks,
-                                              String newDay, LocalTime newStart, LocalTime newEnd, Room newRoom) {
+                                              String newDay, LocalTime newStart, LocalTime newEnd, Room newRoom, User actor) {
         String subject = "Session changing for " + weekList(weeks) + " — " + session.getModule().getCode();
         String weeksText = weekList(weeks);
         emailStudentsForSession(session, subject, student -> EmailTemplateBuilder.create()
@@ -84,14 +88,16 @@ public class CourseChangeNotificationService {
                 .closing("Outside of " + weeksText + ", nothing changes — you'll see the session at its normal time as usual.")
                 .build());
 
+        String summary = "Session updated for " + session.getModule().getCode() + " for " + weeksText + " only.";
         notificationService.notify(session.getLecturer(), "SESSION_UPDATED",
                 "Your " + session.getModule().getCode() + " session was updated by the Timetabling Team for "
                         + weeksText + " only.",
                 null, session);
+        activityLogService.log("SESSION_UPDATED", summary, actor, session.getLecturer(), session, null);
     }
 
     // ALL_REMAINING (full) cancellation - the session no longer runs at all, going forward.
-    public void notifySessionCancelled(TimetableSession session) {
+    public void notifySessionCancelled(TimetableSession session, User actor) {
         String subject = "Session cancelled — " + session.getModule().getCode();
         emailStudentsForSession(session, subject, student -> EmailTemplateBuilder.create()
                 .heading("Session Cancelled")
@@ -102,14 +108,16 @@ public class CourseChangeNotificationService {
                 .closing("If you have any questions about this, please get in touch with your department.")
                 .build());
 
+        String summary = "Session cancelled for " + session.getModule().getCode() + " (" + session.getDayOfWeek() + " " + session.getStartTime() + ").";
         notificationService.notify(session.getLecturer(), "SESSION_CANCELLED",
                 "Your " + session.getModule().getCode() + " session (" + session.getDayOfWeek() + " "
                         + session.getStartTime() + ") was cancelled by the Timetabling Team.",
                 null, session);
+        activityLogService.log("SESSION_CANCELLED", summary, actor, session.getLecturer(), session, null);
     }
 
     // SINGLE/MULTIPLE (partial) cancellation - the session is skipped for specific weeks only.
-    public void notifySessionCancelledForWeeks(TimetableSession session, Set<Integer> weeks) {
+    public void notifySessionCancelledForWeeks(TimetableSession session, Set<Integer> weeks, User actor) {
         String weeksText = weekList(weeks);
         String subject = "Session cancelled for " + weeksText + " — " + session.getModule().getCode();
         emailStudentsForSession(session, subject, student -> EmailTemplateBuilder.create()
@@ -121,34 +129,27 @@ public class CourseChangeNotificationService {
                 .closing("The session will resume as normal after " + weeksText + ".")
                 .build());
 
+        String summary = "Session cancelled for " + session.getModule().getCode() + " for " + weeksText + " only.";
         notificationService.notify(session.getLecturer(), "SESSION_CANCELLED",
                 "Your " + session.getModule().getCode() + " session was cancelled by the Timetabling Team for "
                         + weeksText + " only.",
                 null, session);
+        activityLogService.log("SESSION_CANCELLED", summary, actor, session.getLecturer(), session, null);
     }
 
     private void emailStudentsForSession(TimetableSession session, String subject, java.util.function.Function<User, String> bodyBuilder) {
         // if the session's own label names a specific group (e.g. "Lab — Group A"),
         // only students in that same group need emailing
-        String sessionGroup = extractGroupLabel(session.getSessionLabel());
-
         for (Course course : session.getCourses()) {
             List<User> students = userRepository.findByRoleAndCourseIdAndAccountStatus(
                     Role.STUDENT, course.getId(), AccountStatus.ACTIVE);
             for (User student : students) {
-                if (sessionGroup != null && student.getGroupLabel() != null && !sessionGroup.equals(student.getGroupLabel())) {
+                if (!GroupLabelUtil.isRelevantToStudent(session.getSessionLabel(), student.getGroupLabel())) {
                     continue;
                 }
                 emailService.send(student.getEmail(), subject, bodyBuilder.apply(student), course, session);
             }
         }
-    }
-
-    // pulls "Group A" (or similar) out of a session label like "Lab — Group A"
-    private String extractGroupLabel(String sessionLabel) {
-        if (sessionLabel == null) return null;
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("Group [A-Za-z0-9]+").matcher(sessionLabel);
-        return m.find() ? m.group() : null;
     }
 
     private String moduleRef(TimetableSession session) {

@@ -26,6 +26,7 @@ public class ChangeRequestService {
     private final UserRepository userRepository;
     private final AcademicYearService academicYearService;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
 
     public RequestDto submitChangeRequest(String username, ChangeRequestCreateDto dto) {
         User requester = findUser(username);
@@ -142,10 +143,10 @@ public class ChangeRequestService {
                 .build();
 
         Request saved = requestRepository.save(request);
-        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
-                requester.getFullName() + " submitted a change request for " + primaryModule.getCode()
-                        + " (" + changeCategory.name().toLowerCase().replace('_', ' ') + ").",
-                saved);
+        String summary = requester.getFullName() + " submitted a change request for " + primaryModule.getCode()
+                + " (" + changeCategory.name().toLowerCase().replace('_', ' ') + ").";
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST", summary, saved);
+        activityLogService.log("REQUEST_SUBMITTED", summary, requester, requester, null, saved);
         return RequestDto.fromEntity(saved);
     }
 

@@ -31,6 +31,7 @@ public class ConstraintRequestService {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
 
     public RequestDto submitModuleConstraint(String username, ModuleConstraintCreateDto dto) {
         User requester = findUser(username);
@@ -56,7 +57,7 @@ public class ConstraintRequestService {
         }
 
         WeekMode weekMode = WeekMode.valueOf(dto.getWeekMode());
-        // day/time are now optional per evaluation feedback - null means "no preference, Academics will decide"
+        // day/time are now optional per evaluation feedback - null means "no preference, TT decides"
         Weekday dayOfWeek = dto.getDayOfWeek() != null ? Weekday.valueOf(dto.getDayOfWeek()) : null;
         RoomType roomType = RoomType.valueOf(dto.getRoomType());
         RoomLayout preferredRoomLayout = dto.getPreferredRoomLayout() != null
@@ -118,9 +119,9 @@ public class ConstraintRequestService {
         }
 
         Request saved = requestRepository.save(request);
-        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
-                requester.getFullName() + " submitted a module-based constraint for " + primaryModule.getCode() + ".",
-                saved);
+        String summary = requester.getFullName() + " submitted a module-based constraint for " + primaryModule.getCode() + ".";
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST", summary, saved);
+        activityLogService.log("REQUEST_SUBMITTED", summary, requester, requester, null, saved);
         return RequestDto.fromEntity(saved);
     }
 
@@ -149,8 +150,9 @@ public class ConstraintRequestService {
                 .build();
 
         Request saved = requestRepository.save(request);
-        notificationService.notifyAllTimetablingTeam("NEW_REQUEST",
-                requester.getFullName() + " submitted a personal constraint.", saved);
+        String summary = requester.getFullName() + " submitted a personal constraint.";
+        notificationService.notifyAllTimetablingTeam("NEW_REQUEST", summary, saved);
+        activityLogService.log("REQUEST_SUBMITTED", summary, requester, requester, null, saved);
         return RequestDto.fromEntity(saved);
     }
 
@@ -190,7 +192,7 @@ public class ConstraintRequestService {
     // Timetabling Team side: move a request forward in the status flow.
     // A reason is mandatory once the decision is final (ACCEPTED or REJECTED)
     // the lecturer can view this via reasonComment but optional for the interim statuses.
-    public RequestDto updateStatus(Long requestId, UpdateRequestStatusDto dto) {
+    public RequestDto updateStatus(Long requestId, UpdateRequestStatusDto dto, String actingUsername) {
         Request request = findRequest(requestId);
         RequestStatus newStatus = RequestStatus.valueOf(dto.getStatus());
 
@@ -206,10 +208,11 @@ public class ConstraintRequestService {
         }
 
         Request saved = requestRepository.save(request);
+        User actor = findUser(actingUsername);
         String what = request.getConstraintKind() != null ? "constraint" : "change request";
-        notificationService.notify(request.getRequester(), "REQUEST_STATUS_CHANGED",
-                "Your " + what + " (#" + request.getId() + ") is now " + newStatus.name().toLowerCase().replace('_', ' ') + ".",
-                request, null);
+        String summary = "Your " + what + " (#" + request.getId() + ") is now " + newStatus.name().toLowerCase().replace('_', ' ') + ".";
+        notificationService.notify(request.getRequester(), "REQUEST_STATUS_CHANGED", summary, request, null);
+        activityLogService.log("REQUEST_STATUS_CHANGED", summary, actor, request.getRequester(), null, saved);
 
         return RequestDto.fromEntity(saved);
     }
