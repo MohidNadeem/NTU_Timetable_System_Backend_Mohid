@@ -16,14 +16,16 @@ public class CommentDto {
     private String authorRole; // LECTURER | TIMETABLING_TEAM | ADMIN - lets the frontend style "them" vs "us" distinctly
     private String comment;
     private LocalDateTime createdAt;
+    private AttachmentDto attachment; // null if no file was attached to this comment
 
-    public static CommentDto fromEntity(RequestComment c) {
+    public static CommentDto fromEntity(RequestComment c, AttachmentDto attachment) {
         return CommentDto.builder()
                 .id(c.getId())
                 .authorName(c.getAuthor().getFullName())
                 .authorRole(c.getAuthor().getRole().name())
                 .comment(c.getComment())
                 .createdAt(c.getCreatedAt())
+                .attachment(attachment)
                 .build();
     }
 }
